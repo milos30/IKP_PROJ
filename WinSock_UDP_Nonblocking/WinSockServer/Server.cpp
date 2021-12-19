@@ -119,21 +119,36 @@ int main(int argc,char* argv[])
                            (LPSOCKADDR)&clientAddress,
                            &sockAddrLen);
 
+		
+
         if (iResult == SOCKET_ERROR)
         {
             printf("recvfrom failed with error: %d\n", WSAGetLastError());
             continue;
         }
 
-        char ipAddress[IP_ADDRESS_LEN];
-		// copy client ip to local char[]
-        strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
-		// convert port number from TCP/IP byte order to
-		// little endian byte order
-        int clientPort = ntohs((u_short)clientAddress.sin_port);
 
-        printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
+		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
+		{
+			printf("NOVO");
+			// TODO dodaj novu grupu
+		}
+		else if (strcmp(accessBuffer, "RETURN_GROUPS") == 0)
+		{
+			printf("Lista");
+			// TODO vrati grupe
+		}
+		else
+		{
+			char ipAddress[IP_ADDRESS_LEN];
+			// copy client ip to local char[]
+			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
+			// convert port number from TCP/IP byte order to
+			// little endian byte order
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
 
+			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
+		}
 		// possible server-shutdown logic could be put here
     }
 
