@@ -5,7 +5,11 @@
 #define SERVER_SLEEP_TIME 50
 #define ACCESS_BUFFER_SIZE 1024
 #define IP_ADDRESS_LEN 16
-
+struct Proces
+{
+	int group;
+	int port;
+};
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
@@ -22,7 +26,16 @@ int main(int argc,char* argv[])
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
 	int iResult;
-
+	Proces procesi[100000000];
+	char mqueue[1000][1000];
+	/*
+	j	
+i	1 2 3 4
+	5 6 7 8
+	9 1 1 2
+	
+	
+	*/
     if(InitializeWindowsSockets() == false)
 	{
         // we won't log anything since it will be logged
@@ -126,17 +139,54 @@ int main(int argc,char* argv[])
             printf("recvfrom failed with error: %d\n", WSAGetLastError());
             continue;
         }
-
-
+		int groupNmb = 0;
+		int i = 0;
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
-			printf("NOVO");
+			groupNmb++;
+			
+			char a[10];
+			itoa(groupNmb,a,10);
+			
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
+			procesi[i].group = groupNmb;
+			procesi[i].port = clientPort;
+			i++;
+			iResult = sendto(serverSocket,
+				a,
+				strlen(a),
+				0,
+				(LPSOCKADDR)&clientAddress,
+				sockAddrLen);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(serverSocket);
+				WSACleanup();
+				return 1;
+			}
 			// TODO dodaj novu grupu
 		}
 		else if (strcmp(accessBuffer, "RETURN_GROUPS") == 0)
 		{
 			printf("Lista");
-			// TODO vrati grupe
+			char a[10];
+			itoa(groupNmb, a, 10);
+
+
+			iResult = sendto(serverSocket,
+				a,
+				strlen(a),
+				0,
+				(LPSOCKADDR)&clientAddress,
+				sockAddrLen);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(serverSocket);
+				WSACleanup();
+				return 1;
+			}
 		}
 		else
 		{
