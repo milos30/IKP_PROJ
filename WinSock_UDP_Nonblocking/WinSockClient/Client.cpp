@@ -46,46 +46,91 @@ int main(int argc,char* argv[])
         WSACleanup();
         return 1;
     }
-
-	while (1)
-	{
-		printf("Enter message from server:\n");
-
-		// Read string from user into outgoing buffer
-		gets_s(outgoingBuffer, OUTGOING_BUFFER_SIZE);
-
-		iResult = sendto(clientSocket,
-			outgoingBuffer,
-			strlen(outgoingBuffer),
-			0,
-			(LPSOCKADDR)&serverAddress,
-			sockAddrLen);
-
-		if (iResult == SOCKET_ERROR)
+	int iz,group;
+	bool work = true;
+	//////////////////
+		printf("1. Nova grupa\n2. Postojeca grupa\n");
+		scanf("%d", &group);
+		if (group == 1)
 		{
-			printf("sendto failed with error: %d\n", WSAGetLastError());
-			closesocket(clientSocket);
-			WSACleanup();
-			return 1;
+			strcpy(outgoingBuffer, "NEW_GROUP");
+
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+		}
+		else
+		{
+			// TODO funkcija za primanje poruke od servera za listu postojecih grupa
+		}
+	///////////////////
+	
+	while (work)
+	{
+		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku");
+		scanf("%d", &iz);
+		switch (iz)
+		{
+		case 1: {
+			printf("Press any key to exit.\n");
+			_getch();
+
+			iResult = closesocket(clientSocket);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("closesocket failed with error: %d\n", WSAGetLastError());
+				return 1;
+			}
+
+			iResult = WSACleanup();
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("WSACleanup failed with error: %ld\n", WSAGetLastError());
+				return 1;
+			}
+			work = false;
+			break;
+		}
+		case 2 :
+		{
+			printf("Enter message for the group queue:\n");
+
+			// Read string from user into outgoing buffer
+			gets_s(outgoingBuffer, OUTGOING_BUFFER_SIZE);
+
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+			break;
+		}
+		default: printf("INPUT INVALID\N");
+			break;
 		}
 	}
+	
 
-	printf("Message sent to server, press any key to exit.\n");
-	_getch();
-
-    iResult = closesocket(clientSocket);
-    if (iResult == SOCKET_ERROR)
-    {
-        printf("closesocket failed with error: %d\n", WSAGetLastError());
-        return 1;
-    }
-
-    iResult = WSACleanup();
-    if (iResult == SOCKET_ERROR)
-    {
-        printf("WSACleanup failed with error: %ld\n", WSAGetLastError());
-        return 1;
-    }
 
     return 0;
 }
