@@ -47,25 +47,28 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-	printf("Enter message from server:\n");
+	while (1)
+	{
+		printf("Enter message from server:\n");
 
-	// Read string from user into outgoing buffer
-    gets_s(outgoingBuffer, OUTGOING_BUFFER_SIZE);
-	
-    iResult = sendto(clientSocket,
-					 outgoingBuffer,
-					 strlen(outgoingBuffer),
-					 0,
-					 (LPSOCKADDR)&serverAddress,
-					 sockAddrLen);
+		// Read string from user into outgoing buffer
+		gets_s(outgoingBuffer, OUTGOING_BUFFER_SIZE);
 
-    if (iResult == SOCKET_ERROR)
-    {
-        printf("sendto failed with error: %d\n", WSAGetLastError());
-        closesocket(clientSocket);
-        WSACleanup();
-        return 1;
-    }
+		iResult = sendto(clientSocket,
+			outgoingBuffer,
+			strlen(outgoingBuffer),
+			0,
+			(LPSOCKADDR)&serverAddress,
+			sockAddrLen);
+
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("sendto failed with error: %d\n", WSAGetLastError());
+			closesocket(clientSocket);
+			WSACleanup();
+			return 1;
+		}
+	}
 
 	printf("Message sent to server, press any key to exit.\n");
 	_getch();
