@@ -24,7 +24,7 @@ int main(int argc,char* argv[])
     int serverPort = SERVER_PORT;
 	// variable used to store function return value
 	int iResult;
-
+	char proc_group[OUTGOING_BUFFER_SIZE];
     // Initialize windows sockets for this process
     InitializeWindowsSockets();
 
@@ -51,6 +51,7 @@ int main(int argc,char* argv[])
 	//////////////////
 		printf("1. Nova grupa\n2. Postojeca grupa\n");
 		scanf("%d", &group);
+		scanf("");
 		if (group == 1)
 		{
 			strcpy(outgoingBuffer, "NEW_GROUP");
@@ -62,6 +63,14 @@ int main(int argc,char* argv[])
 				(LPSOCKADDR)&serverAddress,
 				sockAddrLen);
 
+			iResult = recvfrom(clientSocket,
+				proc_group,
+				OUTGOING_BUFFER_SIZE,
+				0,
+				(LPSOCKADDR)&serverAddress,
+				&sockAddrLen);
+			
+
 			if (iResult == SOCKET_ERROR)
 			{
 				printf("sendto failed with error: %d\n", WSAGetLastError());
@@ -69,17 +78,58 @@ int main(int argc,char* argv[])
 				WSACleanup();
 				return 1;
 			}
+			// Broj nove grupe je ovdje u proc_group
 		}
 		else
 		{
+			strcpy(outgoingBuffer, "RETURN_GROUPS");
+
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
 			// TODO funkcija za primanje poruke od servera za listu postojecih grupa
+			iResult = recvfrom(clientSocket,
+				proc_group,
+				OUTGOING_BUFFER_SIZE,
+				0,
+				(LPSOCKADDR)&serverAddress,
+				&sockAddrLen);
+
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+			int pom = atoi(proc_group);
+			
+			printf("Postojece grupe su:\n");
+			for (int i = 1; i <= pom; i++)
+			{
+				printf("Grupa %d.\n", i);
+			}
+
+			
+			group = -1;
+			while (group <1 && group >pom)
+			{
+				printf("Izaberite grupu\n");
+				scanf("%d", &group);
+			}
+			
 		}
 	///////////////////
-	
+		char c;
 	while (work)
 	{
-		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku");
+		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n");
 		scanf("%d", &iz);
+		scanf("%c",&c);
 		switch (iz)
 		{
 		case 1: {
@@ -125,7 +175,7 @@ int main(int argc,char* argv[])
 			}
 			break;
 		}
-		default: printf("INPUT INVALID\N");
+		default: printf("INPUT INVALID\n");
 			break;
 		}
 	}
