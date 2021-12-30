@@ -5,9 +5,17 @@
 #define SERVER_SLEEP_TIME 50
 #define ACCESS_BUFFER_SIZE 1024
 #define IP_ADDRESS_LEN 16
+
+
+struct Grupa
+{
+	int procesi[10];
+	int brClanova = 0;
+	int brojac = 0;
+};
 struct Proces
 {
-	int group;
+	int grupa;
 	int port;
 };
 // Initializes WinSock2 library
@@ -26,8 +34,11 @@ int main(int argc,char* argv[])
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
 	int iResult;
-	Proces procesi[100000000];
 	char mqueue[1000][1000];
+	Grupa grupe[10];
+	Proces procesi[10];
+	int brClanova = 0;
+	int groupNmb = 0;
 	/*
 	j	
 i	1 2 3 4
@@ -133,25 +144,30 @@ i	1 2 3 4
                            &sockAddrLen);
 
 		
-
+		int i = 0;
         if (iResult == SOCKET_ERROR)
         {
             printf("recvfrom failed with error: %d\n", WSAGetLastError());
             continue;
         }
-		int groupNmb = 0;
-		int i = 0;
+		
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
 			groupNmb++;
+			grupe[groupNmb].brClanova++;
+
 			
 			char a[10];
 			itoa(groupNmb,a,10);
 			
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			procesi[i].group = groupNmb;
 			procesi[i].port = clientPort;
 			i++;
+			procesi[i].grupa = groupNmb;
+			int brojac = grupe[groupNmb].brojac;
+			grupe[groupNmb].procesi[brojac] = clientPort;
+			grupe[groupNmb].brojac++;
+
 			iResult = sendto(serverSocket,
 				a,
 				strlen(a),
@@ -180,6 +196,7 @@ i	1 2 3 4
 				0,
 				(LPSOCKADDR)&clientAddress,
 				sockAddrLen);
+
 			if (iResult == SOCKET_ERROR)
 			{
 				printf("sendto failed with error: %d\n", WSAGetLastError());
@@ -187,6 +204,38 @@ i	1 2 3 4
 				WSACleanup();
 				return 1;
 			}
+			/*
+			recive koja grupa je izabrana
+			*/
+		}
+		else if (strcmp(accessBuffer, "DQ") == 0)
+		{
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
+			for (int i = 0; i < 1000; i++)
+			{
+				if (procesi[i].port == clientPort)
+				{
+					grupe[procesi[i].grupa].brClanova--;
+					// izbrisi proces iz liste
+					// ako je broj clanva postao nula izbrisi grupu iz niza "grupe"
+				}
+			}
+		}
+		else if(atoi(accessBuffer)>0)
+		{
+			char ipAddress[IP_ADDRESS_LEN];
+			// copy client ip to local char[]
+			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
+			// convert port number from TCP/IP byte order to
+			// little endian byte order
+			int br = atoi(accessBuffer);
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
+			grupe[br].brClanova++;
+			grupe[br].procesi[grupe[br].brojac] = clientPort;
+			grupe[br].brojac++;
+			//printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
+			printf("Dodao u grupu\n");
+			
 		}
 		else
 		{
@@ -196,9 +245,11 @@ i	1 2 3 4
 			// convert port number from TCP/IP byte order to
 			// little endian byte order
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-
+			
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
+
 		}
+
 		// possible server-shutdown logic could be put here
     }
 
@@ -234,3 +285,51 @@ bool InitializeWindowsSockets()
     }
 	return true;
 }
+/*
+struct Node
+{
+	char data;
+	struct Node *next;
+};
+
+struct queue
+{
+	struct Node *top;
+	struct Node *bottom;
+}*q;
+
+void Write(char x)
+{
+	struct Node *ptr=malloc(sizeof(struct Node));
+	ptr->data=x;
+	ptr->next=NULL;
+	if (q->top==NULL && q->bottom==NULL)
+	{
+		q->top=q->bottom=ptr;
+	}
+	else
+	{
+		q->top->next=ptr;
+		q->top=ptr;
+	}
+}
+
+char Read ()
+{
+	if(q->bottom==NULL)
+	{
+		printf("Empty QUEUE!");
+		return 0;
+	}
+	struct Node *ptr=malloc(sizeof(struct Node));
+	ptr=q->bottom;
+	if(q->top==q->bottom)
+	{
+		q->top=NULL;
+	}
+	q->bottom=q->bottom->next;
+	char x=ptr->data;
+	free(ptr);
+	return x;
+}
+*/
