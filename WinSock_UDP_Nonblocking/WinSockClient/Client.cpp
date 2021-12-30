@@ -1,7 +1,9 @@
-#include <winsock2.h>
 #include <stdio.h>
+#include <winsock2.h>
 #include <conio.h>
 
+
+#define no_init_all deprecated
 #define SERVER_PORT 15000
 #define OUTGOING_BUFFER_SIZE 1024
 // for demonstration purposes we will hard code
@@ -46,6 +48,22 @@ int main(int argc,char* argv[])
         WSACleanup();
         return 1;
     }
+	//NEBLOKIRAJUCI
+
+	// Initialize select parameters
+	FD_SET set;
+	timeval timeVal;
+
+	FD_ZERO(&set);
+	// Add socket we will wait to read from
+	FD_SET(clientSocket, &set);
+
+	// Set timeouts to zero since we want select to return
+	// instantaneously
+	timeVal.tv_sec = 0;
+	timeVal.tv_usec = 0;
+
+	iResult = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
 	int iz,group;
 	bool work = true;
 	//////////////////
@@ -141,8 +159,29 @@ int main(int argc,char* argv[])
 		}
 	///////////////////
 		char c;
+		unsigned long int nonBlockingMode = 1;
+		int iResult2 = ioctlsocket(clientSocket, FIONBIO, &nonBlockingMode);
+		char prijem[OUTGOING_BUFFER_SIZE];
 	while (work)
 	{
+		memset(prijem, 0, OUTGOING_BUFFER_SIZE);
+		iResult2 = recvfrom(clientSocket,
+			prijem,
+			OUTGOING_BUFFER_SIZE,
+			0,
+			(LPSOCKADDR)&serverAddress,
+			&sockAddrLen);
+		if(prijem != 0)
+			printf("Poruka: %s\n", prijem);
+
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("sendto failed with error: %d\n", WSAGetLastError());
+			closesocket(clientSocket);
+			WSACleanup();
+			return 1;
+		}
+
 		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n");
 		scanf("%d", &iz);
 		scanf("%c",&c);
@@ -212,6 +251,12 @@ int main(int argc,char* argv[])
 		}
 		default: printf("INPUT INVALID\n");
 			break;
+		}
+		if (iResult2 == 0)
+		{
+			// there are no ready sockets, sleep for a while and check again
+			Sleep(50);
+			continue;
 		}
 	}
 	
