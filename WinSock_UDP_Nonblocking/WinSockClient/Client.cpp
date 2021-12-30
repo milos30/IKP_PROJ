@@ -109,17 +109,33 @@ int main(int argc,char* argv[])
 			int pom = atoi(proc_group);
 			
 			printf("Postojece grupe su:\n");
-			for (int i = 1; i <= pom; i++)
+			for (int i = 0; i <pom; i++)
 			{
 				printf("Grupa %d.\n", i);
 			}
 
 			
 			group = -1;
-			while (group <1 && group >pom)
+		while (group <0 || group >=pom)
 			{
 				printf("Izaberite grupu\n");
 				scanf("%d", &group);
+			}
+			char a[5];
+			strcpy(outgoingBuffer,itoa(group,a,10));
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
 			}
 			
 		}
@@ -133,6 +149,25 @@ int main(int argc,char* argv[])
 		switch (iz)
 		{
 		case 1: {
+
+			strcpy(outgoingBuffer, "DQ");
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+			/*
+			Poruka serveru za diskonektovanje
+			*/
 			printf("Press any key to exit.\n");
 			_getch();
 
