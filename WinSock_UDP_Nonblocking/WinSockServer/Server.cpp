@@ -1,6 +1,7 @@
 #include <winsock2.h>
 #include <stdio.h>
 
+#define no_init_all deprecated
 #define SERVER_PORT 15000
 #define SERVER_SLEEP_TIME 50
 #define ACCESS_BUFFER_SIZE 1024
@@ -18,9 +19,23 @@ struct Proces
 	int grupa;
 	int port;
 };
+struct Node
+{
+	char *data;
+	struct Node *next;
+};
+
+struct queue
+{
+	struct Node *top;
+	struct Node *bottom;
+}*q;
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
+void Write(char *x, queue *q);
+char* Read();
+int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
 
 int main(int argc,char* argv[])
 {
@@ -39,6 +54,10 @@ int main(int argc,char* argv[])
 	Proces procesi[10];
 	int brClanova = 0;
 	int groupNmb = 0;
+	queue red[10];
+	red[0].bottom = NULL;
+	red[0].top = NULL;
+	Node *node;
 	/*
 	j	
 i	1 2 3 4
@@ -145,6 +164,7 @@ i	1 2 3 4
 
 		
 		int i = 0;
+		//ovde pravi problem posle slanja poruka!!
         if (iResult == SOCKET_ERROR)
         {
             printf("recvfrom failed with error: %d\n", WSAGetLastError());
@@ -156,7 +176,7 @@ i	1 2 3 4
 			groupNmb++;
 			grupe[groupNmb].brClanova++;
 
-			
+			printf("NOVA GRUPA/n");
 			char a[10];
 			itoa(groupNmb,a,10);
 			
@@ -221,7 +241,8 @@ i	1 2 3 4
 				}
 			}
 		}
-		else if(atoi(accessBuffer)>0)
+		//ubacuje u izabranu grupu
+		else if(atoi(accessBuffer)>=0 && atoi(accessBuffer) <= 20)
 		{
 			char ipAddress[IP_ADDRESS_LEN];
 			// copy client ip to local char[]
@@ -237,6 +258,7 @@ i	1 2 3 4
 			printf("Dodao u grupu\n");
 			
 		}
+		//prima poruke
 		else
 		{
 			char ipAddress[IP_ADDRESS_LEN];
@@ -248,6 +270,14 @@ i	1 2 3 4
 			
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
 
+			//TODO u koji que da upise
+
+			//pisanje u que
+			Write(accessBuffer, &red[0]);
+
+			//thread da salje svima
+			int dobro;
+			dobro = posalji(&red[0], grupe[groupNmb], serverSocket, clientAddress, sockAddrLen);
 		}
 
 		// possible server-shutdown logic could be put here
@@ -273,6 +303,72 @@ i	1 2 3 4
     return 0;
 }
 
+//posalji svim klijentima u grupi
+int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
+{
+	int iResult;
+	for (int i = 0; i < g.brClanova; i++)
+	{
+		clientAddress.sin_port = g.procesi[i];
+		iResult = sendto(serverSocket,
+			q->top->data,
+			strlen(q->top->data),
+			0,
+			(LPSOCKADDR)&clientAddress,
+			sockAddrLen);
+
+		if (iResult == SOCKET_ERROR)
+		{
+			printf("sendto failed with error: %d\n", WSAGetLastError());
+			closesocket(serverSocket);
+			WSACleanup();
+			return 1;
+		}
+		printf("Poslao poruku klijentu\n");
+	}
+}
+
+void Write(char *x, queue *q)
+{
+	Node *ptr = (Node*)malloc(sizeof(Node));
+	if (ptr == NULL)
+	{
+		printf("GRESKA KOD PTR");
+	}
+	ptr->data = (char*)malloc(strlen(x) + 1);
+	strcpy(ptr->data, x);
+	ptr->next = NULL;
+	if (q->top == NULL && q->bottom == NULL)
+	{
+		q->top = q->bottom = ptr;
+	}
+	else
+	{
+		q->top->next = ptr;
+		q->top = ptr;
+	}
+}
+
+char* Read()
+{
+	if (q->bottom == NULL)
+	{
+		printf("Empty QUEUE!");
+		return 0;
+	}
+	struct Node *ptr = (Node*)malloc(sizeof(struct Node));
+	ptr = q->bottom;
+	if (q->top == q->bottom)
+	{
+		q->top = NULL;
+	}
+	q->bottom = q->bottom->next;
+	char *x = ptr->data;
+	free(ptr);
+	return x;
+}
+
+
 bool InitializeWindowsSockets()
 {
     WSADATA wsaData;
@@ -286,50 +382,7 @@ bool InitializeWindowsSockets()
 	return true;
 }
 /*
-struct Node
-{
-	char data;
-	struct Node *next;
-};
 
-struct queue
-{
-	struct Node *top;
-	struct Node *bottom;
-}*q;
 
-void Write(char x)
-{
-	struct Node *ptr=malloc(sizeof(struct Node));
-	ptr->data=x;
-	ptr->next=NULL;
-	if (q->top==NULL && q->bottom==NULL)
-	{
-		q->top=q->bottom=ptr;
-	}
-	else
-	{
-		q->top->next=ptr;
-		q->top=ptr;
-	}
-}
 
-char Read ()
-{
-	if(q->bottom==NULL)
-	{
-		printf("Empty QUEUE!");
-		return 0;
-	}
-	struct Node *ptr=malloc(sizeof(struct Node));
-	ptr=q->bottom;
-	if(q->top==q->bottom)
-	{
-		q->top=NULL;
-	}
-	q->bottom=q->bottom->next;
-	char x=ptr->data;
-	free(ptr);
-	return x;
-}
 */
