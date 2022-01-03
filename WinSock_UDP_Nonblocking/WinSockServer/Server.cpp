@@ -4,7 +4,7 @@
 #define no_init_all deprecated
 #define SERVER_PORT 15000
 #define SERVER_SLEEP_TIME 50
-#define ACCESS_BUFFER_SIZE 1024
+#define ACCESS_BUFFER_SIZE 2048
 #define IP_ADDRESS_LEN 16
 
 
@@ -36,6 +36,7 @@ bool InitializeWindowsSockets();
 void Write(char *x, queue *q);
 char* Read();
 int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
+bool Poruka(char* accessBuffer);
 
 int main(int argc,char* argv[])
 {
@@ -161,7 +162,7 @@ i	1 2 3 4
                            0,
                            (LPSOCKADDR)&clientAddress,
                            &sockAddrLen);
-
+		//printf("%s ACCes buffed\n", accessBuffer);
 		
 		int i = 0;
 		//ovde pravi problem posle slanja poruka!!
@@ -173,12 +174,10 @@ i	1 2 3 4
 		
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
-			groupNmb++;
+			//printf("Nova grupa\n");
 			grupe[groupNmb].brClanova++;
 
-			printf("NOVA GRUPA/n");
-			char a[10];
-			itoa(groupNmb,a,10);
+			//printf("NOVA GRUPA/n");
 			
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 			procesi[i].port = clientPort;
@@ -188,24 +187,13 @@ i	1 2 3 4
 			grupe[groupNmb].procesi[brojac] = clientPort;
 			grupe[groupNmb].brojac++;
 
-			iResult = sendto(serverSocket,
-				a,
-				strlen(a),
-				0,
-				(LPSOCKADDR)&clientAddress,
-				sockAddrLen);
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("sendto failed with error: %d\n", WSAGetLastError());
-				closesocket(serverSocket);
-				WSACleanup();
-				return 1;
-			}
+			groupNmb++;
 			// TODO dodaj novu grupu
 		}
 		else if (strcmp(accessBuffer, "RETURN_GROUPS") == 0)
 		{
-			printf("Lista");
+			//printf("Return groups\n");
+			//printf("Lista");
 			char a[10];
 			itoa(groupNmb, a, 10);
 
@@ -241,33 +229,18 @@ i	1 2 3 4
 				}
 			}
 		}
-		//ubacuje u izabranu grupu
-		else if(atoi(accessBuffer)>=0 && atoi(accessBuffer) <= 20)
-		{
-			char ipAddress[IP_ADDRESS_LEN];
-			// copy client ip to local char[]
-			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
-			// convert port number from TCP/IP byte order to
-			// little endian byte order
-			int br = atoi(accessBuffer);
-			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			grupe[br].brClanova++;
-			grupe[br].procesi[grupe[br].brojac] = clientPort;
-			grupe[br].brojac++;
-			//printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
-			printf("Dodao u grupu\n");
-			
-		}
 		//prima poruke
-		else
+		else if (Poruka(accessBuffer))
 		{
+			printf("PRIMI I SALJE \n");
 			char ipAddress[IP_ADDRESS_LEN];
 			// copy client ip to local char[]
 			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
+
 			// convert port number from TCP/IP byte order to
 			// little endian byte order
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			
+
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
 
 			//TODO u koji que da upise
@@ -277,8 +250,26 @@ i	1 2 3 4
 
 			//thread da salje svima
 			int dobro;
-			dobro = posalji(&red[0], grupe[groupNmb], serverSocket, clientAddress, sockAddrLen);
+			dobro = posalji(&red[0], grupe[0], serverSocket, clientAddress, sockAddrLen);
 		}
+		//ubacuje u izabranu grupu
+		else
+		{
+			char ipAddress[IP_ADDRESS_LEN];
+			// copy client ip to local char[]
+			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
+			// convert port number from TCP/IP byte order to
+			// little endian byte order
+			int br = atoi(accessBuffer);
+			printf("%d\n", br);
+
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
+			grupe[br].brClanova++;
+			grupe[br].procesi[grupe[br].brojac] = clientPort;
+			grupe[br].brojac++;
+			
+		}
+
 
 		// possible server-shutdown logic could be put here
     }
@@ -303,6 +294,22 @@ i	1 2 3 4
     return 0;
 }
 
+bool Poruka(char* accessBuffer)
+{
+	int count = 0;
+	char p[7] = "Poruka";
+	for (int i = 0; i < 6; i++)
+	{
+		if (accessBuffer[i] == p[i])
+			count++;
+	}
+	//printf("%d COUNT", count);
+	if (count == 6)
+		return true;
+	return false;
+}
+
+
 //posalji svim klijentima u grupi
 int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
 {
@@ -310,6 +317,7 @@ int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, i
 	for (int i = 0; i < g.brClanova; i++)
 	{
 		clientAddress.sin_port = g.procesi[i];
+		printf("saljem klijentima: %s\n", q->top->data);
 		iResult = sendto(serverSocket,
 			q->top->data,
 			strlen(q->top->data),
