@@ -316,7 +316,7 @@ int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, i
 	int iResult;
 	for (int i = 0; i < g.brClanova; i++)
 	{
-		clientAddress.sin_port = g.procesi[i];
+		clientAddress.sin_port = htons(g.procesi[i]);
 		printf("saljem klijentima: %s\n", q->top->data);
 		iResult = sendto(serverSocket,
 			q->top->data,
