@@ -16,7 +16,7 @@
 bool InitializeWindowsSockets();
 
 int iResult2;
-sockaddr_in serverAddress;
+sockaddr_in serverAddress, serverAddress2;
 int sockAddrLen = sizeof(struct sockaddr);
 
 
@@ -27,27 +27,40 @@ DWORD WINAPI Recive(LPVOID lpParam)
 	SOCKET clientSocket2 = *(SOCKET*)lpParam;
 	while (1)
 	{
+		FD_SET set;
+		timeval timeVal;
+		FD_ZERO(&set);
+		FD_SET(clientSocket2, &set);
+		timeVal.tv_sec = 0;
+		timeVal.tv_usec = 0;
+		//printf("Usao u Recive tredovani\n");
+		iResult2 = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
 		memset(prijem, 0, OUTGOING_BUFFER_SIZE);
+		 
+		if (iResult2 == 0)
+		{
+			// there are no ready sockets, sleep for a while and check again
+			Sleep(5000);
+			continue;
+		}
+
 		iResult2 = recvfrom(clientSocket2,
 			prijem,
 			OUTGOING_BUFFER_SIZE,
 			0,
-			(LPSOCKADDR)&serverAddress,
+			(LPSOCKADDR)&serverAddress2,
 			&sockAddrLen);
 
 		if (strcmp(prijem, "") != 0)
 			printf("Poruka: %s\n", prijem);
-		if (iResult2 == 0)
-		{
-			// there are no ready sockets, sleep for a while and check again
-			Sleep(50);
-			continue;
-		}
-		/*if (iResult2 == SOCKET_ERROR)
+		else
+			printf("No messages for now\n");
+
+		if (iResult2 == SOCKET_ERROR)
 		{
 			printf("recvfrom failed with error: %d\n", WSAGetLastError());
 			continue;
-		}*/
+		}
 	}
 }
 
@@ -67,6 +80,7 @@ int main(int argc,char* argv[])
     char outgoingBuffer[OUTGOING_BUFFER_SIZE];
     // port used for communication with server
     int serverPort = SERVER_PORT;
+	int serverPort2 = 15001;
 	// variable used to store function return value
 	int iResult;
 	char proc_group[OUTGOING_BUFFER_SIZE];
@@ -79,6 +93,11 @@ int main(int argc,char* argv[])
     serverAddress.sin_addr.s_addr = inet_addr(SERVER_IP_ADDERESS);
     serverAddress.sin_port = htons((u_short)serverPort);
 
+	memset((char*)&serverAddress2, 0, sizeof(serverAddress2));
+	serverAddress2.sin_family = AF_INET;
+	serverAddress2.sin_addr.s_addr = inet_addr(SERVER_IP_ADDERESS);
+	serverAddress2.sin_port = htons((u_short)serverPort2);
+
 	// create a socket
 	SOCKET clientSocket = socket(AF_INET,      // IPv4 address famly
 								SOCK_DGRAM,   // datagram socket
@@ -88,7 +107,7 @@ int main(int argc,char* argv[])
 		IPPROTO_UDP); // UDP
 
 
-
+	iResult2 = bind(clientSocket2, (LPSOCKADDR)&serverAddress2, sizeof(serverAddress2));
 
     // check if socket creation succeeded
     if (clientSocket == INVALID_SOCKET)
@@ -97,16 +116,16 @@ int main(int argc,char* argv[])
         WSACleanup();
         return 1;
     }
-/*	if (clientSocket2 == INVALID_SOCKET)
+	if (clientSocket2 == INVALID_SOCKET)
 	{
 		printf("Creating socket failed with error: %d\n", WSAGetLastError());
 		WSACleanup();
 		return 1;
-	}*/
+	}
 	//NEBLOKIRAJUCI
 
 	// Initialize select parameters
-	FD_SET set;
+	/*FD_SET set;
 	timeval timeVal;
 
 	FD_ZERO(&set);
@@ -115,11 +134,13 @@ int main(int argc,char* argv[])
 
 	// Set timeouts to zero since we want select to return
 	// instantaneously
+	
 	timeVal.tv_sec = 0;
 	timeVal.tv_usec = 0;
+	*/
 	unsigned long int nonBlockingMode = 1;
 	iResult2 = ioctlsocket(clientSocket2, FIONBIO, &nonBlockingMode);
-	iResult2 = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
+	
 	int iz,group;
 	bool work = true;
 	//////////////////
