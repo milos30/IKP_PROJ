@@ -36,7 +36,8 @@ DWORD WINAPI Recive(LPVOID lpParam)
 		//printf("Usao u Recive tredovani\n");
 		iResult2 = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
 		memset(prijem, 0, OUTGOING_BUFFER_SIZE);
-		 
+
+		printf("Pre ifa, spavam..\n");
 		if (iResult2 == 0)
 		{
 			// there are no ready sockets, sleep for a while and check again
@@ -97,7 +98,8 @@ int main(int argc,char* argv[])
 	serverAddress2.sin_family = AF_INET;
 	serverAddress2.sin_addr.s_addr = inet_addr(SERVER_IP_ADDERESS);
 	serverAddress2.sin_port = htons((u_short)serverPort2);
-
+	printf("%i s1 port\n", serverAddress.sin_port);
+	printf("%i s2 port\n", serverAddress2.sin_port);
 	// create a socket
 	SOCKET clientSocket = socket(AF_INET,      // IPv4 address famly
 								SOCK_DGRAM,   // datagram socket
@@ -233,6 +235,7 @@ int main(int argc,char* argv[])
 		char prijem[OUTGOING_BUFFER_SIZE];
 	while (work)
 	{
+		Sleep(1000);
 		hRecive = CreateThread(NULL, 0, &Recive, &clientSocket2, 0, &dRecive);
 
 		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n");
@@ -297,6 +300,22 @@ int main(int argc,char* argv[])
 				(LPSOCKADDR)&serverAddress,
 				sockAddrLen);
 
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+			/*memset(proc_group, 0, OUTGOING_BUFFER_SIZE);
+			iResult = recvfrom(clientSocket,
+				proc_group,
+				OUTGOING_BUFFER_SIZE,
+				0,
+				(LPSOCKADDR)&serverAddress,
+				&sockAddrLen);
+
+			printf("%s\n", proc_group);*/
 			if (iResult == SOCKET_ERROR)
 			{
 				printf("sendto failed with error: %d\n", WSAGetLastError());

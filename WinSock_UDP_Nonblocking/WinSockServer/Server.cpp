@@ -30,6 +30,8 @@ struct queue
 	struct Node *top;
 	struct Node *bottom;
 }*q;
+
+int iResult;
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
@@ -49,7 +51,7 @@ int main(int argc,char* argv[])
 	// buffer we will use to receive client message
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
-	int iResult;
+//	int iResult;
 	char mqueue[1000][1000];
 	Grupa grupe[10];
 	Proces procesi[10];
@@ -174,7 +176,7 @@ i	1 2 3 4
 		
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
-			//printf("Nova grupa\n");
+			printf("Nova grupa\n");
 			grupe[groupNmb].brClanova++;
 
 			//printf("NOVA GRUPA/n");
@@ -248,6 +250,13 @@ i	1 2 3 4
 			//pisanje u que
 			Write(accessBuffer, &red[0]);
 
+			/*clientAddress.sin_port = htons((u_short)grupe->procesi[0]);
+			iResult = sendto(serverSocket,
+				red->top->data,
+				strlen(red->top->data),
+				0,
+				(LPSOCKADDR)&clientAddress,
+				sockAddrLen);*/
 			//thread da salje svima
 			int dobro;
 			dobro = posalji(&red[0], grupe[0], serverSocket, clientAddress, sockAddrLen);
@@ -313,11 +322,28 @@ bool Poruka(char* accessBuffer)
 //posalji svim klijentima u grupi
 int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
 {
-	int iResult;
+	//int iResult;
 	for (int i = 0; i < g.brClanova; i++)
 	{
-		clientAddress.sin_port = htons(g.procesi[i]);
+		//linija ispod nece da se izvrsi nekim cudom wtf
+		//printf("Na adresu: %i\n", g.procesi[i]);
+		clientAddress.sin_port = htons((u_short)g.procesi[0]);
 		printf("saljem klijentima: %s\n", q->top->data);
+		printf("Na adresu: %i\n", clientAddress.sin_port);
+		/*iResult = sendto(serverSocket,
+				a,
+				strlen(a),
+				0,
+				(LPSOCKADDR)&clientAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(serverSocket);
+				WSACleanup();
+				return 1;
+			}*/
 		iResult = sendto(serverSocket,
 			q->top->data,
 			strlen(q->top->data),
