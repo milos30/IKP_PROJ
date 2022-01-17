@@ -19,8 +19,8 @@ typedef struct Grupa
 }GRUPE;
 typedef struct Proces
 {
-	//int *grupa;
-	int *port;
+	int grupa;
+	int port;
 }PROCES;
 struct Node
 {
@@ -59,14 +59,14 @@ int main(int argc,char* argv[])
 	// 
 	//
 	Grupa *niz_grupa;
-	Proces procesi[10];
+	Proces *procesi;
 	int brClanova = 0;
 	int groupNmb = 1;
 	queue red[10];
 	red[0].bottom = NULL;
 	red[0].top = NULL;
 	Node *node;
-
+	int brProcesa = 0;
     if(InitializeWindowsSockets() == false)
 	{
         // we won't log anything since it will be logged
@@ -175,25 +175,32 @@ int main(int argc,char* argv[])
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
 			printf("Nova grupa\n");
-
+			niz_grupa = new Grupa;
 			GRUPE* nova_grupa = (GRUPE *)malloc(sizeof(GRUPE));
-			nova_grupa->brClanova = 0;
+			nova_grupa->brClanova = 1;
 
 			QUEUE* novi_q = (QUEUE*)malloc(sizeof(QUEUE));
 			novi_q->bottom = NULL;
 			novi_q->top = NULL;
 			nova_grupa->q = novi_q;
 			nova_grupa->brojGrupe = groupNmb;
-
-			int* port_klijenta = (int*)malloc(sizeof(int));
-			nova_grupa->klijenti[brClanova] = port_klijenta;
-			
+		
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			//PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
-			//novi_proces->port = clientPort;
-			//novi_proces->grupa = groupNmb;
+			nova_grupa->klijenti = new int;
+			int port_klijenta = clientPort;
+			nova_grupa->klijenti[0] = port_klijenta;
+
+			procesi = new Proces;
+			PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
+			novi_proces->port = clientPort;
+			novi_proces->grupa = groupNmb;
+			
+			
+			*(niz_grupa + (groupNmb-1)*sizeof(GRUPE)) = *nova_grupa;
+			*(procesi + brProcesa * sizeof(Proces)) = *novi_proces;
+			brProcesa++;
+
 			groupNmb++;
-			niz_grupa = nova_grupa;
 		}
 		else if (strcmp(accessBuffer, "RETURN_GROUPS") == 0)
 		{
@@ -247,24 +254,25 @@ int main(int argc,char* argv[])
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
-			int trenutnaGrupa = 1;
+			int trenutnaGrupa = -1;
 			//TODO u koji que da upise
-			for (int i = 0; i < 10; i++)
+			for (int i = 0; i < brProcesa-1; i++)
 			{
-				//if (clientPort == procesi[i].port)
+				if (clientPort == procesi[i].port)
 				{
-				//	trenutnaGrupa = procesi[i].grupa;
+					trenutnaGrupa = procesi[i].grupa;
 					break;
 				}
-			//	else
+				else
 					printf("Klijent nije ubacen u grupu\n");
 			}
-			//pisanje u que
-			//Write(accessBuffer, grupe[trenutnaGrupa].q);
+
+			//pisanje u queue
+			Write(accessBuffer,niz_grupa[trenutnaGrupa-1].q);
 
 			
 			int dobro;
-		//	dobro = posalji(grupe[0], serverSocket, clientAddress, sockAddrLen);
+			dobro = posalji(niz_grupa[trenutnaGrupa-1], serverSocket, clientAddress, sockAddrLen);
 
 		}
 		//ubacuje u izabranu grupu
@@ -278,8 +286,15 @@ int main(int argc,char* argv[])
 			{
 				if (niz_grupa->brojGrupe == br)
 				{
-					int* port_klijenta = (int*)malloc(sizeof(int));
-					niz_grupa->klijenti = port_klijenta;
+					niz_grupa[br-1].brClanova++;
+					niz_grupa[br-1].klijenti[brClanova-1] = clientPort;
+
+					procesi = new Proces;
+					PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
+					novi_proces->port = clientPort;
+					novi_proces->grupa = br;
+					procesi[brProcesa] = *novi_proces;
+					brProcesa++;
 				}
 			}			
 		}
@@ -327,14 +342,15 @@ bool Poruka(char* accessBuffer)
 //posalji svim klijentima u grupi
 int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
 {
-	//int iResult;
-	for (int i = 0; i < g.brClanova; i++)
+	int iResult;
+	printf("Prije fora\n");
+	for (int i = 0; i < g.brClanova-1; i++)
 	{
-		//clientAddress.sin_port = htons((u_short)g.procesi[i]);
+		clientAddress.sin_port = htons((u_short)g.klijenti[i]);
 		
 		//printf("saljem klijentima: %s\n", q->top->data);
-		//printf("Na adresu: %i\n", clientAddress.sin_port);
-
+		printf("Na adresu: %i\n", clientAddress.sin_port);
+		printf("Posalje q->bottom %s\n", g.q->bottom->data);
 		iResult = sendto(serverSocket,
 			g.q->bottom->data,
 			strlen(g.q->bottom->data),
@@ -375,6 +391,7 @@ void Write(char *x, queue *q)
 		q->top->next = ptr;
 		q->top = ptr;
 	}
+	printf("Sta je upisao %s\n", q->bottom->data);
 }
 
 char* Read(queue *q)
