@@ -36,7 +36,7 @@ int iResult;
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
 void Write(char *x, queue *q);
-char* Read();
+char* Read(queue *q);
 int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
 bool Poruka(char* accessBuffer);
 
@@ -250,16 +250,10 @@ i	1 2 3 4
 			//pisanje u que
 			Write(accessBuffer, &red[0]);
 
-			/*clientAddress.sin_port = htons((u_short)grupe->procesi[0]);
-			iResult = sendto(serverSocket,
-				red->top->data,
-				strlen(red->top->data),
-				0,
-				(LPSOCKADDR)&clientAddress,
-				sockAddrLen);*/
-			//thread da salje svima
+			
 			int dobro;
 			dobro = posalji(&red[0], grupe[0], serverSocket, clientAddress, sockAddrLen);
+
 		}
 		//ubacuje u izabranu grupu
 		else
@@ -325,28 +319,14 @@ int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, i
 	//int iResult;
 	for (int i = 0; i < g.brClanova; i++)
 	{
-		//linija ispod nece da se izvrsi nekim cudom wtf
-		//printf("Na adresu: %i\n", g.procesi[i]);
-		clientAddress.sin_port = htons((u_short)g.procesi[0]);
+		clientAddress.sin_port = htons((u_short)g.procesi[i]);
+		
 		printf("saljem klijentima: %s\n", q->top->data);
 		printf("Na adresu: %i\n", clientAddress.sin_port);
-		/*iResult = sendto(serverSocket,
-				a,
-				strlen(a),
-				0,
-				(LPSOCKADDR)&clientAddress,
-				sockAddrLen);
 
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("sendto failed with error: %d\n", WSAGetLastError());
-				closesocket(serverSocket);
-				WSACleanup();
-				return 1;
-			}*/
 		iResult = sendto(serverSocket,
-			q->top->data,
-			strlen(q->top->data),
+			q->bottom->data,
+			strlen(q->bottom->data),
 			0,
 			(LPSOCKADDR)&clientAddress,
 			sockAddrLen);
@@ -359,7 +339,10 @@ int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, i
 			return 1;
 		}
 		printf("Poslao poruku klijentu\n");
+		
 	}
+	Read(q);
+
 }
 
 void Write(char *x, queue *q)
@@ -383,9 +366,9 @@ void Write(char *x, queue *q)
 	}
 }
 
-char* Read()
+char* Read(queue *q)
 {
-	if (q->bottom == NULL)
+	if (q->bottom== NULL)
 	{
 		printf("Empty QUEUE!");
 		return 0;
@@ -415,8 +398,3 @@ bool InitializeWindowsSockets()
     }
 	return true;
 }
-/*
-
-
-
-*/
