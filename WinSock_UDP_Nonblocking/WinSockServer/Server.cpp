@@ -13,6 +13,7 @@ struct Grupa
 	int procesi[10];
 	int brClanova = 0;
 	int brojac = 0;
+	struct queue *q;
 };
 struct Proces
 {
@@ -37,7 +38,7 @@ int iResult;
 bool InitializeWindowsSockets();
 void Write(char *x, queue *q);
 char* Read(queue *q);
-int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
+int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
 bool Poruka(char* accessBuffer);
 
 int main(int argc,char* argv[])
@@ -52,7 +53,6 @@ int main(int argc,char* argv[])
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
 //	int iResult;
-	char mqueue[1000][1000];
 	Grupa grupe[10];
 	Proces procesi[10];
 	int brClanova = 0;
@@ -61,14 +61,7 @@ int main(int argc,char* argv[])
 	red[0].bottom = NULL;
 	red[0].top = NULL;
 	Node *node;
-	/*
-	j	
-i	1 2 3 4
-	5 6 7 8
-	9 1 1 2
-	
-	
-	*/
+
     if(InitializeWindowsSockets() == false)
 	{
         // we won't log anything since it will be logged
@@ -179,16 +172,15 @@ i	1 2 3 4
 			printf("Nova grupa\n");
 			grupe[groupNmb].brClanova++;
 
-			//printf("NOVA GRUPA/n");
 			
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 			procesi[i].port = clientPort;
-			i++;
+			
 			procesi[i].grupa = groupNmb;
+			i++;
 			int brojac = grupe[groupNmb].brojac;
 			grupe[groupNmb].procesi[brojac] = clientPort;
 			grupe[groupNmb].brojac++;
-
 			groupNmb++;
 			// TODO dodaj novu grupu
 		}
@@ -244,15 +236,24 @@ i	1 2 3 4
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
-
+			int trenutnaGrupa = 1;
 			//TODO u koji que da upise
-
+			for (int i = 0; i < 10; i++)
+			{
+				if (clientPort == procesi[i].port)
+				{
+					trenutnaGrupa = procesi[i].grupa;
+					break;
+				}
+				else
+					printf("Klijent nije ubacen u grupu\n");
+			}
 			//pisanje u que
-			Write(accessBuffer, &red[0]);
+			Write(accessBuffer, grupe[trenutnaGrupa].q);
 
 			
 			int dobro;
-			dobro = posalji(&red[0], grupe[0], serverSocket, clientAddress, sockAddrLen);
+			dobro = posalji(grupe[0], serverSocket, clientAddress, sockAddrLen);
 
 		}
 		//ubacuje u izabranu grupu
@@ -314,19 +315,19 @@ bool Poruka(char* accessBuffer)
 
 
 //posalji svim klijentima u grupi
-int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
+int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
 {
 	//int iResult;
 	for (int i = 0; i < g.brClanova; i++)
 	{
 		clientAddress.sin_port = htons((u_short)g.procesi[i]);
 		
-		printf("saljem klijentima: %s\n", q->top->data);
-		printf("Na adresu: %i\n", clientAddress.sin_port);
+		//printf("saljem klijentima: %s\n", q->top->data);
+		//printf("Na adresu: %i\n", clientAddress.sin_port);
 
 		iResult = sendto(serverSocket,
-			q->bottom->data,
-			strlen(q->bottom->data),
+			g.q->bottom->data,
+			strlen(g.q->bottom->data),
 			0,
 			(LPSOCKADDR)&clientAddress,
 			sockAddrLen);
@@ -341,7 +342,7 @@ int posalji(queue *q, Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, i
 		printf("Poslao poruku klijentu\n");
 		
 	}
-	Read(q);
+	Read(g.q);
 
 }
 
