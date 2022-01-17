@@ -182,7 +182,7 @@ int main(int argc,char* argv[])
 			int pom = atoi(proc_group);
 			
 			printf("Postojece grupe su:\n");
-			for (int i = 0; i <pom; i++)
+			for (int i = 1; i <pom; i++)
 			{
 				printf("Grupa %d.\n", i);
 			}
