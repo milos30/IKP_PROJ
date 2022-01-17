@@ -8,29 +8,31 @@
 #define IP_ADDRESS_LEN 16
 
 
-struct Grupa
+typedef struct Grupa
 {
-	int procesi[10];
-	int brClanova = 0;
-	int brojac = 0;
-	struct queue *q;
-};
-struct Proces
+	//struct PROCES* klijenti;
+	int* klijenti;
+	//int procesi[10];	// portovi klijenata koji su u grupi
+	int brClanova = 0;	// koliko grupa ima clanova
+	int brojGrupe = 0;	// broj Grupe
+	struct queue *q;    // red grupe 
+}GRUPE;
+typedef struct Proces
 {
-	int grupa;
-	int port;
-};
+	//int *grupa;
+	int *port;
+}PROCES;
 struct Node
 {
 	char *data;
 	struct Node *next;
 };
 
-struct queue
+typedef struct queue
 {
 	struct Node *top;
 	struct Node *bottom;
-}*q;
+}QUEUE;
 
 int iResult;
 // Initializes WinSock2 library
@@ -53,10 +55,13 @@ int main(int argc,char* argv[])
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
 //	int iResult;
-	Grupa grupe[10];
+	//
+	// 
+	//
+	Grupa *niz_grupa;
 	Proces procesi[10];
 	int brClanova = 0;
-	int groupNmb = 0;
+	int groupNmb = 1;
 	queue red[10];
 	red[0].bottom = NULL;
 	red[0].top = NULL;
@@ -170,24 +175,30 @@ int main(int argc,char* argv[])
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
 			printf("Nova grupa\n");
-			grupe[groupNmb].brClanova++;
 
+			GRUPE* nova_grupa = (GRUPE *)malloc(sizeof(GRUPE));
+			nova_grupa->brClanova = 0;
+
+			QUEUE* novi_q = (QUEUE*)malloc(sizeof(QUEUE));
+			novi_q->bottom = NULL;
+			novi_q->top = NULL;
+			nova_grupa->q = novi_q;
+			nova_grupa->brojGrupe = groupNmb;
+
+			int* port_klijenta = (int*)malloc(sizeof(int));
+			nova_grupa->klijenti[brClanova] = port_klijenta;
 			
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			procesi[i].port = clientPort;
-			
-			procesi[i].grupa = groupNmb;
-			i++;
-			int brojac = grupe[groupNmb].brojac;
-			grupe[groupNmb].procesi[brojac] = clientPort;
-			grupe[groupNmb].brojac++;
+			//PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
+			//novi_proces->port = clientPort;
+			//novi_proces->grupa = groupNmb;
 			groupNmb++;
-			// TODO dodaj novu grupu
+			niz_grupa = nova_grupa;
 		}
 		else if (strcmp(accessBuffer, "RETURN_GROUPS") == 0)
 		{
-			//printf("Return groups\n");
-			//printf("Lista");
+			printf("Return groups\n");
+
 			char a[10];
 			itoa(groupNmb, a, 10);
 
@@ -207,7 +218,7 @@ int main(int argc,char* argv[])
 				return 1;
 			}
 			/*
-			recive koja grupa je izabrana
+			recive koja grupa je izabrana je u poslednjem else..
 			*/
 		}
 		else if (strcmp(accessBuffer, "DQ") == 0)
@@ -215,9 +226,9 @@ int main(int argc,char* argv[])
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 			for (int i = 0; i < 1000; i++)
 			{
-				if (procesi[i].port == clientPort)
+			//	if (procesi[i].port == clientPort)
 				{
-					grupe[procesi[i].grupa].brClanova--;
+					//grupe[procesi[i].grupa].brClanova--;
 					// izbrisi proces iz liste
 					// ako je broj clanva postao nula izbrisi grupu iz niza "grupe"
 				}
@@ -240,38 +251,37 @@ int main(int argc,char* argv[])
 			//TODO u koji que da upise
 			for (int i = 0; i < 10; i++)
 			{
-				if (clientPort == procesi[i].port)
+				//if (clientPort == procesi[i].port)
 				{
-					trenutnaGrupa = procesi[i].grupa;
+				//	trenutnaGrupa = procesi[i].grupa;
 					break;
 				}
-				else
+			//	else
 					printf("Klijent nije ubacen u grupu\n");
 			}
 			//pisanje u que
-			Write(accessBuffer, grupe[trenutnaGrupa].q);
+			//Write(accessBuffer, grupe[trenutnaGrupa].q);
 
 			
 			int dobro;
-			dobro = posalji(grupe[0], serverSocket, clientAddress, sockAddrLen);
+		//	dobro = posalji(grupe[0], serverSocket, clientAddress, sockAddrLen);
 
 		}
 		//ubacuje u izabranu grupu
 		else
 		{
-			char ipAddress[IP_ADDRESS_LEN];
-			// copy client ip to local char[]
-			strcpy_s(ipAddress, sizeof(ipAddress), inet_ntoa(clientAddress.sin_addr));
-			// convert port number from TCP/IP byte order to
-			// little endian byte order
-			int br = atoi(accessBuffer);
+			int br = atoi(accessBuffer);	// uzimamo broj grupe
 			printf("%d\n", br);
 
-			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			grupe[br].brClanova++;
-			grupe[br].procesi[grupe[br].brojac] = clientPort;
-			grupe[br].brojac++;
-			
+			int clientPort = ntohs((u_short)clientAddress.sin_port);  // uzmemo klijent port
+			for (int i = 1; i <= groupNmb; i++)
+			{
+				if (niz_grupa->brojGrupe == br)
+				{
+					int* port_klijenta = (int*)malloc(sizeof(int));
+					niz_grupa->klijenti = port_klijenta;
+				}
+			}			
 		}
 
 
@@ -320,7 +330,7 @@ int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAdd
 	//int iResult;
 	for (int i = 0; i < g.brClanova; i++)
 	{
-		clientAddress.sin_port = htons((u_short)g.procesi[i]);
+		//clientAddress.sin_port = htons((u_short)g.procesi[i]);
 		
 		//printf("saljem klijentima: %s\n", q->top->data);
 		//printf("Na adresu: %i\n", clientAddress.sin_port);
