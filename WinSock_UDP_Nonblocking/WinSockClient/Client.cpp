@@ -37,7 +37,7 @@ DWORD WINAPI Recive(LPVOID lpParam)
 		iResult2 = select(0 /* ignored */, &set, NULL, NULL, &timeVal);
 		memset(prijem, 0, OUTGOING_BUFFER_SIZE);
 
-		printf("Pre ifa, spavam..\n");
+		//printf("Pre ifa, spavam..\n");
 		if (iResult2 == 0)
 		{
 			// there are no ready sockets, sleep for a while and check again
@@ -71,7 +71,6 @@ int main(int argc,char* argv[])
 {
 	DWORD dRecive;
 	HANDLE hRecive;
-
 
     // Server address
    
@@ -124,22 +123,7 @@ int main(int argc,char* argv[])
 		WSACleanup();
 		return 1;
 	}
-	//NEBLOKIRAJUCI
 
-	// Initialize select parameters
-	/*FD_SET set;
-	timeval timeVal;
-
-	FD_ZERO(&set);
-	// Add socket we will wait to read from
-	FD_SET(clientSocket2, &set);
-
-	// Set timeouts to zero since we want select to return
-	// instantaneously
-	
-	timeVal.tv_sec = 0;
-	timeVal.tv_usec = 0;
-	*/
 	unsigned long int nonBlockingMode = 1;
 	iResult2 = ioctlsocket(clientSocket2, FIONBIO, &nonBlockingMode);
 	
@@ -231,7 +215,8 @@ int main(int argc,char* argv[])
 	///////////////////
 		char c;
 
-
+		clientSocket2 = clientSocket;
+		serverAddress2 = serverAddress;
 		char prijem[OUTGOING_BUFFER_SIZE];
 	while (work)
 	{
@@ -307,15 +292,7 @@ int main(int argc,char* argv[])
 				WSACleanup();
 				return 1;
 			}
-			/*memset(proc_group, 0, OUTGOING_BUFFER_SIZE);
-			iResult = recvfrom(clientSocket,
-				proc_group,
-				OUTGOING_BUFFER_SIZE,
-				0,
-				(LPSOCKADDR)&serverAddress,
-				&sockAddrLen);
 
-			printf("%s\n", proc_group);*/
 			if (iResult == SOCKET_ERROR)
 			{
 				printf("sendto failed with error: %d\n", WSAGetLastError());
