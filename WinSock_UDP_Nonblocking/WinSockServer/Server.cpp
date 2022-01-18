@@ -12,10 +12,11 @@ typedef struct Grupa
 {
 	//struct PROCES* klijenti;
 	int* klijenti;
-	//int procesi[10];	// portovi klijenata koji su u grupi
+
 	int brClanova = 0;	// koliko grupa ima clanova
 	int brojGrupe = 0;	// broj Grupe
 	struct queue *q;    // red grupe 
+	struct Grupa *next;			//pokazivac za sledeci
 }GRUPE;
 typedef struct Proces
 {
@@ -42,6 +43,9 @@ void Write(char *x, queue *q);
 char* Read(queue *q);
 int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
 bool Poruka(char* accessBuffer);
+void dodaj_grupu_u_listu(GRUPE* grupa, GRUPE** pocetak);
+GRUPE *nadji_grupu(int br, GRUPE *pocetak);
+int nadji_broj_grupe(int port, GRUPE *niz_grupa_pocetak, int groupnmb);
 
 int main(int argc,char* argv[])
 {
@@ -58,14 +62,15 @@ int main(int argc,char* argv[])
 	//
 	// 
 	//
-	Grupa *niz_grupa;
+	Grupa *niz_grupa_pocetak; // mozda nece trebati?
+	niz_grupa_pocetak = NULL;
 	Proces *procesi;
 	int brClanova = 0;
 	int groupNmb = 1;
-	queue red[10];
-	red[0].bottom = NULL;
-	red[0].top = NULL;
-	Node *node;
+//	queue red[10];
+	//red[0].bottom = NULL;
+	//red[0].top = NULL;
+	//Node *node;
 	int brProcesa = 0;
     if(InitializeWindowsSockets() == false)
 	{
@@ -175,7 +180,7 @@ int main(int argc,char* argv[])
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
 			printf("Nova grupa\n");
-			niz_grupa = new Grupa;
+			//niz_grupa_pocetak = new Grupa;  // mozda nece trebati?
 			GRUPE* nova_grupa = (GRUPE *)malloc(sizeof(GRUPE));
 			nova_grupa->brClanova = 1;
 
@@ -184,19 +189,24 @@ int main(int argc,char* argv[])
 			novi_q->top = NULL;
 			nova_grupa->q = novi_q;
 			nova_grupa->brojGrupe = groupNmb;
-		
+			nova_grupa->next = NULL;
+
+			// eventualno ovaj blok koda ispod malo izmeniti za vise klijenata, ne znam glup je c dosta
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
 			nova_grupa->klijenti = new int;
 			int port_klijenta = clientPort;
 			nova_grupa->klijenti[0] = port_klijenta;
+			
+			dodaj_grupu_u_listu(nova_grupa, &niz_grupa_pocetak); //ne zaboravi da obrises grupe na kraju
 
+			//da li isto i za procese uraditi??
 			procesi = new Proces;
 			PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
 			novi_proces->port = clientPort;
 			novi_proces->grupa = groupNmb;
 			
 			
-			*(niz_grupa + (groupNmb-1)*sizeof(GRUPE)) = *nova_grupa;
+			//*(niz_grupa + (groupNmb-1)*sizeof(GRUPE)) = *nova_grupa;
 			*(procesi + brProcesa * sizeof(Proces)) = *novi_proces;
 			brProcesa++;
 
@@ -255,8 +265,12 @@ int main(int argc,char* argv[])
 
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
 			int trenutnaGrupa = -1;
-			//TODO u koji que da upise
-			for (int i = 0; i < brProcesa-1; i++)
+			Grupa* trenutna;
+			trenutnaGrupa = nadji_broj_grupe(clientPort, niz_grupa_pocetak, groupNmb-1);
+			trenutna = nadji_grupu(trenutnaGrupa, niz_grupa_pocetak);
+
+			/*//TODO u koji que da upise
+			for (int i = 0; i < brProcesa; i++)
 			{
 				if (clientPort == procesi[i].port)
 				{
@@ -265,14 +279,14 @@ int main(int argc,char* argv[])
 				}
 				else
 					printf("Klijent nije ubacen u grupu\n");
-			}
+			}*/
 
 			//pisanje u queue
-			Write(accessBuffer,niz_grupa[trenutnaGrupa-1].q);
+			Write(accessBuffer,trenutna->q);
 
 			
 			int dobro;
-			dobro = posalji(niz_grupa[trenutnaGrupa-1], serverSocket, clientAddress, sockAddrLen);
+			dobro = posalji(*trenutna, serverSocket, clientAddress, sockAddrLen);
 
 		}
 		//ubacuje u izabranu grupu
@@ -282,6 +296,23 @@ int main(int argc,char* argv[])
 			printf("%d\n", br);
 
 			int clientPort = ntohs((u_short)clientAddress.sin_port);  // uzmemo klijent port
+			Grupa *trenutna;
+
+			//for (int i = 0; i <= groupNmb; i++)
+			{
+				trenutna = nadji_grupu(br, niz_grupa_pocetak);
+			}
+			
+			trenutna->brClanova++;
+			//int clientPort = ntohs((u_short)clientAddress.sin_port);
+
+
+			// ovde ne radi ovo najbolje, problem je sto new int ne napravi novo mesto u redu nego nzm ni ja,
+			// c je dosta glup za ove stvari iskreno
+			trenutna->klijenti = new int;
+			int port_klijenta = clientPort;
+			trenutna->klijenti[brClanova - 1] = port_klijenta;
+			/*//for nije dobar, unutra tek nista
 			for (int i = 1; i <= groupNmb; i++)
 			{
 				if (niz_grupa->brojGrupe == br)
@@ -296,7 +327,7 @@ int main(int argc,char* argv[])
 					procesi[brProcesa] = *novi_proces;
 					brProcesa++;
 				}
-			}			
+			}		*/	
 		}
 
 
@@ -344,7 +375,7 @@ int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAdd
 {
 	int iResult;
 	printf("Prije fora\n");
-	for (int i = 0; i < g.brClanova-1; i++)
+	for (int i = 0; i < g.brClanova; i++)
 	{
 		clientAddress.sin_port = htons((u_short)g.klijenti[i]);
 		
@@ -425,4 +456,47 @@ bool InitializeWindowsSockets()
         return false;
     }
 	return true;
+}
+
+void dodaj_grupu_u_listu(GRUPE* grupa, GRUPE** pocetak) 
+{
+	if (*pocetak == NULL)
+	{
+		*pocetak = grupa;
+		return;
+	}
+
+	dodaj_grupu_u_listu(grupa, &((*pocetak)->next));
+}
+
+GRUPE *nadji_grupu(int br, GRUPE* pocetak)
+{
+	Grupa *retval;
+	if ((pocetak)->brojGrupe == br)
+	{
+		retval = pocetak;
+		return retval;
+	}
+
+	else
+	{
+		nadji_grupu(br, ((pocetak)->next));
+	}
+}
+
+int nadji_broj_grupe(int port, GRUPE* pocetak, int groupnmb)
+{
+	int retval;
+	for (int j = 0; j < groupnmb; j++)
+	{
+		for (int i = 0; i < (pocetak)->brClanova; i++)
+		{
+			if ((pocetak)->klijenti[i] == port)
+			{
+				retval = (pocetak)->brojGrupe;
+				return retval;
+			}
+		}
+		pocetak = (pocetak)->next;
+	}
 }
