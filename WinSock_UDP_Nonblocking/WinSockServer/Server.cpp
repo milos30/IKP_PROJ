@@ -11,7 +11,7 @@
 typedef struct Grupa
 {
 	//struct PROCES* klijenti;
-	int* klijenti;
+	//int* klijenti;
 
 	int brClanova = 0;	// koliko grupa ima clanova
 	int brojGrupe = 0;	// broj Grupe
@@ -20,32 +20,40 @@ typedef struct Grupa
 }GRUPE;
 typedef struct Proces
 {
-	int grupa;
 	int port;
+	int grupa;
+	struct Proces *sledeci;
 }PROCES;
-struct Node
+/*struct Node
 {
 	char *data;
-	struct Node *next;
-};
-
-typedef struct queue
+	struct queue *next;
+};*/
+typedef struct queue {
+	char *data;
+	struct queue* next;
+} QUEUE;
+/*typedef struct queue
 {
 	struct Node *top;
 	struct Node *bottom;
-}QUEUE;
+}QUEUE;*/
 
 int iResult;
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
-void Write(char *x, queue *q);
-char* Read(queue *q);
-int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen);
+void Write(char *x, queue **q);
+void Read(queue **q);
+int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen, int brojKorisnika, PROCES *p);
 bool Poruka(char* accessBuffer);
 void dodaj_grupu_u_listu(GRUPE* grupa, GRUPE** pocetak);
 GRUPE *nadji_grupu(int br, GRUPE *pocetak);
-int nadji_broj_grupe(int port, GRUPE *niz_grupa_pocetak, int groupnmb);
+int nadji_broj_grupe(int port, PROCES *lista_procesa_pocetak, int groupnmb);
+void dodaj_proces_u_listu(Proces *novi_proces, PROCES **lista_procesa_pocetak);
+int obrisi_korisnika(PROCES *lista_procesa_pocetak, int clientPort);
+void obrisi_grupu(GRUPE **trenutna, GRUPE *pocetak);
+void obrisi_que_grupe(QUEUE **q);
 
 int main(int argc,char* argv[])
 {
@@ -58,19 +66,15 @@ int main(int argc,char* argv[])
 	// buffer we will use to receive client message
     char accessBuffer[ACCESS_BUFFER_SIZE];
 	// variable used to store function return value
-//	int iResult;
-	//
-	// 
-	//
-	Grupa *niz_grupa_pocetak; // mozda nece trebati?
+
+
+	Grupa *niz_grupa_pocetak = NULL; // mozda nece trebati?
 	niz_grupa_pocetak = NULL;
-	Proces *procesi;
+	Proces *lista_procesa_pocetak = NULL;
 	int brClanova = 0;
 	int groupNmb = 1;
-//	queue red[10];
-	//red[0].bottom = NULL;
-	//red[0].top = NULL;
-	//Node *node;
+
+
 	int brProcesa = 0;
     if(InitializeWindowsSockets() == false)
 	{
@@ -185,30 +189,29 @@ int main(int argc,char* argv[])
 			nova_grupa->brClanova = 1;
 
 			QUEUE* novi_q = (QUEUE*)malloc(sizeof(QUEUE));
-			novi_q->bottom = NULL;
-			novi_q->top = NULL;
+			novi_q->data = NULL;
+			novi_q->next = NULL;
 			nova_grupa->q = novi_q;
 			nova_grupa->brojGrupe = groupNmb;
 			nova_grupa->next = NULL;
 
 			// eventualno ovaj blok koda ispod malo izmeniti za vise klijenata, ne znam glup je c dosta
 			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			nova_grupa->klijenti = new int;
+			/*nova_grupa->klijenti = new int;
 			int port_klijenta = clientPort;
-			nova_grupa->klijenti[0] = port_klijenta;
+			nova_grupa->klijenti[0] = port_klijenta;*/
 			
 			dodaj_grupu_u_listu(nova_grupa, &niz_grupa_pocetak); //ne zaboravi da obrises grupe na kraju
 
 			//da li isto i za procese uraditi??
-			procesi = new Proces;
 			PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
 			novi_proces->port = clientPort;
+			novi_proces->sledeci = NULL;
 			novi_proces->grupa = groupNmb;
-			
+			dodaj_proces_u_listu(novi_proces, &lista_procesa_pocetak);
 			
 			//*(niz_grupa + (groupNmb-1)*sizeof(GRUPE)) = *nova_grupa;
-			*(procesi + brProcesa * sizeof(Proces)) = *novi_proces;
-			brProcesa++;
+			brProcesa++; // dali nam ovo sad treba? mislim da ne
 
 			groupNmb++;
 		}
@@ -240,16 +243,19 @@ int main(int argc,char* argv[])
 		}
 		else if (strcmp(accessBuffer, "DQ") == 0)
 		{
-			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			for (int i = 0; i < 1000; i++)
+			int clientPort = ntohs((u_short)clientAddress.sin_port);  // uzmemo klijent port
+
+			Grupa* trenutna;
+			int broj_grupe_brisanog_korisnika = 0;
+			broj_grupe_brisanog_korisnika = obrisi_korisnika(lista_procesa_pocetak, clientPort);
+			trenutna = nadji_grupu(broj_grupe_brisanog_korisnika, niz_grupa_pocetak);
+			trenutna->brClanova--;
+			if (trenutna->brClanova == 0)
 			{
-			//	if (procesi[i].port == clientPort)
-				{
-					//grupe[procesi[i].grupa].brClanova--;
-					// izbrisi proces iz liste
-					// ako je broj clanva postao nula izbrisi grupu iz niza "grupe"
-				}
+				obrisi_grupu(&trenutna, niz_grupa_pocetak);
 			}
+
+			brProcesa--;
 		}
 		//prima poruke
 		else if (Poruka(accessBuffer))
@@ -266,27 +272,14 @@ int main(int argc,char* argv[])
 			printf("Client connected from ip: %s, port: %d, sent: %s.\n", ipAddress, clientPort, accessBuffer);
 			int trenutnaGrupa = -1;
 			Grupa* trenutna;
-			trenutnaGrupa = nadji_broj_grupe(clientPort, niz_grupa_pocetak, groupNmb-1);
+			trenutnaGrupa = nadji_broj_grupe(clientPort, lista_procesa_pocetak, groupNmb-1);
 			trenutna = nadji_grupu(trenutnaGrupa, niz_grupa_pocetak);
 
-			/*//TODO u koji que da upise
-			for (int i = 0; i < brProcesa; i++)
-			{
-				if (clientPort == procesi[i].port)
-				{
-					trenutnaGrupa = procesi[i].grupa;
-					break;
-				}
-				else
-					printf("Klijent nije ubacen u grupu\n");
-			}*/
-
 			//pisanje u queue
-			Write(accessBuffer,trenutna->q);
-
+			Write(accessBuffer,&trenutna->q);
 			
 			int dobro;
-			dobro = posalji(*trenutna, serverSocket, clientAddress, sockAddrLen);
+			dobro = posalji(*trenutna, serverSocket, clientAddress, sockAddrLen, brProcesa, lista_procesa_pocetak);
 
 		}
 		//ubacuje u izabranu grupu
@@ -296,41 +289,20 @@ int main(int argc,char* argv[])
 			printf("%d\n", br);
 
 			int clientPort = ntohs((u_short)clientAddress.sin_port);  // uzmemo klijent port
+
 			Grupa *trenutna;
-
-			//for (int i = 0; i <= groupNmb; i++)
-			{
-				trenutna = nadji_grupu(br, niz_grupa_pocetak);
-			}
-			
+			trenutna = nadji_grupu(br, niz_grupa_pocetak);		
 			trenutna->brClanova++;
+
+
 			//int clientPort = ntohs((u_short)clientAddress.sin_port);
-
-
-			// ovde ne radi ovo najbolje, problem je sto new int ne napravi novo mesto u redu nego nzm ni ja,
-			// c je dosta glup za ove stvari iskreno
-			trenutna->klijenti = new int;
-			int port_klijenta = clientPort;
-			trenutna->klijenti[brClanova - 1] = port_klijenta;
-			/*//for nije dobar, unutra tek nista
-			for (int i = 1; i <= groupNmb; i++)
-			{
-				if (niz_grupa->brojGrupe == br)
-				{
-					niz_grupa[br-1].brClanova++;
-					niz_grupa[br-1].klijenti[brClanova-1] = clientPort;
-
-					procesi = new Proces;
-					PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
-					novi_proces->port = clientPort;
-					novi_proces->grupa = br;
-					procesi[brProcesa] = *novi_proces;
-					brProcesa++;
-				}
-			}		*/	
+			PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
+			novi_proces->port = clientPort;
+			novi_proces->sledeci = NULL;
+			novi_proces->grupa = br;
+			dodaj_proces_u_listu(novi_proces, &lista_procesa_pocetak);
+			brProcesa++;	
 		}
-
-
 		// possible server-shutdown logic could be put here
     }
 
@@ -369,22 +341,29 @@ bool Poruka(char* accessBuffer)
 	return false;
 }
 
-
+//(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen, int brProcesa, PROCES *p)
 //posalji svim klijentima u grupi
-int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen)
+int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen, int brojKorisnika, Proces *p)
 {
+	Proces *temp = p;
 	int iResult;
-	printf("Prije fora\n");
-	for (int i = 0; i < g.brClanova; i++)
+	//printf("Prije fora\n");
+	for (int i = 0; i < brojKorisnika; i++)
 	{
-		clientAddress.sin_port = htons((u_short)g.klijenti[i]);
+		if (!(temp->grupa == g.brojGrupe))
+		{
+			temp = temp->sledeci;
+			continue;
+		}
+
+		clientAddress.sin_port = htons((u_short)temp->port);
 		
 		//printf("saljem klijentima: %s\n", q->top->data);
 		printf("Na adresu: %i\n", clientAddress.sin_port);
-		printf("Posalje q->bottom %s\n", g.q->bottom->data);
+		printf("Posalje q->bottom %s\n", g.q->data);
 		iResult = sendto(serverSocket,
-			g.q->bottom->data,
-			strlen(g.q->bottom->data),
+			g.q->data,
+			strlen(g.q->data),
 			0,
 			(LPSOCKADDR)&clientAddress,
 			sockAddrLen);
@@ -397,51 +376,43 @@ int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAdd
 			return 1;
 		}
 		printf("Poslao poruku klijentu\n");
-		
+		temp = temp->sledeci;
 	}
-	Read(g.q);
+	Read(&g.q);
 
 }
 
-void Write(char *x, queue *q)
-{
-	Node *ptr = (Node*)malloc(sizeof(Node));
-	if (ptr == NULL)
-	{
-		printf("GRESKA KOD PTR");
+void Write(char* val, queue** head) {
+	queue* new_node = (queue*)malloc(sizeof(queue));
+	if (!new_node) return;
+
+	new_node->data = val;
+	new_node->next = *head;
+
+	*head = new_node;
+}
+
+void Read(queue** head) {
+	queue* current, * prev = NULL;
+	//int retval = -1;
+
+	//if (*head == NULL) return -1;
+
+	current = *head;
+	while (current->next != NULL) {
+		prev = current;
+		current = current->next;
 	}
-	ptr->data = (char*)malloc(strlen(x) + 1);
-	strcpy(ptr->data, x);
-	ptr->next = NULL;
-	if (q->top == NULL && q->bottom == NULL)
-	{
-		q->top = q->bottom = ptr;
-	}
+
+	//retval = current->data;
+	free(current);
+
+	if (prev)
+		prev->next = NULL;
 	else
-	{
-		q->top->next = ptr;
-		q->top = ptr;
-	}
-	printf("Sta je upisao %s\n", q->bottom->data);
-}
+		*head = NULL;
 
-char* Read(queue *q)
-{
-	if (q->bottom== NULL)
-	{
-		printf("Empty QUEUE!");
-		return 0;
-	}
-	struct Node *ptr = (Node*)malloc(sizeof(struct Node));
-	ptr = q->bottom;
-	if (q->top == q->bottom)
-	{
-		q->top = NULL;
-	}
-	q->bottom = q->bottom->next;
-	char *x = ptr->data;
-	free(ptr);
-	return x;
+	//return retval;
 }
 
 
@@ -484,19 +455,98 @@ GRUPE *nadji_grupu(int br, GRUPE* pocetak)
 	}
 }
 
-int nadji_broj_grupe(int port, GRUPE* pocetak, int groupnmb)
+int nadji_broj_grupe(int port, PROCES* lista_procesa_pocetak, int groupnmb)
 {
 	int retval;
-	for (int j = 0; j < groupnmb; j++)
+	Proces* temp = lista_procesa_pocetak;
+	while (temp != NULL)
 	{
-		for (int i = 0; i < (pocetak)->brClanova; i++)
+		if (temp->port == port)
 		{
-			if ((pocetak)->klijenti[i] == port)
-			{
-				retval = (pocetak)->brojGrupe;
-				return retval;
-			}
+			retval = temp->grupa;
+			return retval;
 		}
-		pocetak = (pocetak)->next;
+		temp = temp->sledeci;
+		continue;
+	}
+	return retval;
+}
+
+void dodaj_proces_u_listu(Proces* novi_proces, PROCES** lista_procesa_pocetak)
+{
+	if (*lista_procesa_pocetak == NULL) {
+		*lista_procesa_pocetak = novi_proces;
+	}
+	else {
+		Proces* tekuci = *lista_procesa_pocetak;
+
+		while (tekuci->sledeci != NULL) {
+			tekuci = tekuci->sledeci;
+		}
+
+		tekuci->sledeci = novi_proces;
+	}
+}
+
+int obrisi_korisnika(PROCES* lista_procesa_pocetak, int clientPort)
+{
+	Proces* temp, * previous;
+	temp = previous = lista_procesa_pocetak;
+	int broj_grupe = 0;
+	while (1)
+	{
+		if (temp->port == clientPort)
+		{
+			broj_grupe = temp->grupa;
+			previous->sledeci = temp->sledeci;
+			free(temp);
+			temp = NULL;
+			return broj_grupe;
+		}
+		else
+		{
+			previous = temp;
+			temp = temp->sledeci;
+		}
+	}
+	//return broj_grupe;
+}
+
+void obrisi_grupu(GRUPE** trenutna, GRUPE *pocetak)
+{
+	obrisi_que_grupe(&(*trenutna)->q);
+	GRUPE* temp, * previous;
+	temp = previous = pocetak;
+	while (1)
+	{
+		if (temp == *trenutna)
+		{
+			temp->brClanova = 0;
+			temp->brojGrupe = 0;
+			previous->next = temp->next;
+			temp->next = NULL;
+			temp->q = NULL;
+			free(temp);
+			temp = NULL;
+			break;
+		}
+		else
+		{
+			previous = temp;
+			temp = temp->next;
+		}
+	}
+}
+
+void obrisi_que_grupe(QUEUE** q)
+{
+	QUEUE *temp;
+
+	while (*q != NULL)
+	{
+		temp = *q;
+		*q = (*q)->next;
+		temp->next = NULL;
+		free(temp);
 	}
 }

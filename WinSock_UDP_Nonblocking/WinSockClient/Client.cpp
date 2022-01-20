@@ -218,10 +218,9 @@ int main(int argc,char* argv[])
 		clientSocket2 = clientSocket;
 		serverAddress2 = serverAddress;
 		char prijem[OUTGOING_BUFFER_SIZE];
-	while (work)
-	{
-		Sleep(1000);
 		hRecive = CreateThread(NULL, 0, &Recive, &clientSocket2, 0, &dRecive);
+	while (work)
+	{	
 
 		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n");
 		scanf("%d", &iz);
@@ -245,6 +244,7 @@ int main(int argc,char* argv[])
 				WSACleanup();
 				return 1;
 			}
+			CloseHandle(hRecive);
 			/*
 			Poruka serveru za diskonektovanje
 			*/
@@ -312,8 +312,6 @@ int main(int argc,char* argv[])
 			continue;
 		}
 	}
-	
-
 
     return 0;
 }
