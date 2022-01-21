@@ -1,5 +1,6 @@
 #include <winsock2.h>
 #include <stdio.h>
+#include <Windows.h>
 
 #define no_init_all deprecated
 #define SERVER_PORT 15000
@@ -10,12 +11,9 @@
 
 typedef struct Grupa
 {
-	//struct PROCES* klijenti;
-	//int* klijenti;
-
-	int brClanova = 0;	// koliko grupa ima clanova
-	int brojGrupe = 0;	// broj Grupe
-	struct queue *q;    // red grupe 
+	int brClanova = 0;			   // koliko grupa ima clanova
+	int brojGrupe = 0;		  	  // broj Grupe
+	struct queue *q;			 // red grupe 
 	struct Grupa *next;			//pokazivac za sledeci
 }GRUPE;
 typedef struct Proces
@@ -24,20 +22,19 @@ typedef struct Proces
 	int grupa;
 	struct Proces *sledeci;
 }PROCES;
-/*struct Node
-{
-	char *data;
-	struct queue *next;
-};*/
 typedef struct queue {
 	char *data;
 	struct queue* next;
 } QUEUE;
-/*typedef struct queue
-{
-	struct Node *top;
-	struct Node *bottom;
-}QUEUE;*/
+
+typedef struct New_group {
+	Grupa* g;
+	Proces* p;
+	int groupnmb;
+	int brprocesa;
+	SOCKET serverSocket;
+	sockaddr_in clientadres;
+};
 
 int iResult;
 // Initializes WinSock2 library
@@ -54,6 +51,7 @@ void dodaj_proces_u_listu(Proces *novi_proces, PROCES **lista_procesa_pocetak);
 int obrisi_korisnika(PROCES *lista_procesa_pocetak, int clientPort);
 void obrisi_grupu(GRUPE **trenutna, GRUPE *pocetak);
 void obrisi_que_grupe(QUEUE **q);
+DWORD WINAPI New_Group(LPVOID lpParam);
 
 int main(int argc,char* argv[])
 {
@@ -183,9 +181,23 @@ int main(int argc,char* argv[])
 		
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
-			printf("Nova grupa\n");
+			DWORD dRecive;
+			HANDLE hRecive;
+			//ime funkcije treba promeniti i parametre
+			New_group* values = (New_group*)malloc(sizeof(New_group*));
+			values->brprocesa = brProcesa;
+			values->g = niz_grupa_pocetak;
+			values->groupnmb = groupNmb;
+			values->p = lista_procesa_pocetak;
+			values->serverSocket = serverSocket;
+			values->clientadres = clientAddress;
+			//values ne preuzme dobru vrednost, ne kontam zasto kad je lepo setovano sve?????
+			hRecive = CreateThread(NULL, 0, &New_Group, &values, 0, &dRecive);
+
+			//CloseHandle(hRecive);
+			/*printf("Nova grupa\n");
 			//niz_grupa_pocetak = new Grupa;  // mozda nece trebati?
-			GRUPE* nova_grupa = (GRUPE *)malloc(sizeof(GRUPE));
+			GRUPE* nova_grupa = (GRUPE*)malloc(sizeof(GRUPE));
 			nova_grupa->brClanova = 1;
 
 			QUEUE* novi_q = (QUEUE*)malloc(sizeof(QUEUE));
@@ -195,23 +207,20 @@ int main(int argc,char* argv[])
 			nova_grupa->brojGrupe = groupNmb;
 			nova_grupa->next = NULL;
 
-			// eventualno ovaj blok koda ispod malo izmeniti za vise klijenata, ne znam glup je c dosta
-			int clientPort = ntohs((u_short)clientAddress.sin_port);
-			/*nova_grupa->klijenti = new int;
-			int port_klijenta = clientPort;
-			nova_grupa->klijenti[0] = port_klijenta;*/
-			
-			dodaj_grupu_u_listu(nova_grupa, &niz_grupa_pocetak); //ne zaboravi da obrises grupe na kraju
 
-			//da li isto i za procese uraditi??
+			int clientPort = ntohs((u_short)clientAddress.sin_port);
+
+			dodaj_grupu_u_listu(nova_grupa, &niz_grupa_pocetak);
+
+
 			PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
 			novi_proces->port = clientPort;
 			novi_proces->sledeci = NULL;
 			novi_proces->grupa = groupNmb;
 			dodaj_proces_u_listu(novi_proces, &lista_procesa_pocetak);
-			
-			//*(niz_grupa + (groupNmb-1)*sizeof(GRUPE)) = *nova_grupa;
-			brProcesa++; // dali nam ovo sad treba? mislim da ne
+			*/
+			printf("zavrsio nit");
+			brProcesa++; 
 
 			groupNmb++;
 		}
@@ -549,4 +558,33 @@ void obrisi_que_grupe(QUEUE** q)
 		temp->next = NULL;
 		free(temp);
 	}
+}
+
+DWORD WINAPI New_Group(LPVOID lpParam)
+{
+	New_group values = *(New_group*)lpParam;
+	printf("Nova grupa\n");
+	//niz_grupa_pocetak = new Grupa;  // mozda nece trebati?
+	GRUPE* nova_grupa = (GRUPE*)malloc(sizeof(GRUPE));
+	nova_grupa->brClanova = 1;
+
+	QUEUE* novi_q = (QUEUE*)malloc(sizeof(QUEUE));
+	novi_q->data = NULL;
+	novi_q->next = NULL;
+	nova_grupa->q = novi_q;
+	nova_grupa->brojGrupe = values.groupnmb;
+	nova_grupa->next = NULL;
+
+
+	int clientPort = ntohs((u_short)values.clientadres.sin_port);
+
+	dodaj_grupu_u_listu(nova_grupa, &values.g);
+
+
+	PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
+	novi_proces->port = clientPort;
+	novi_proces->sledeci = NULL;
+	novi_proces->grupa = values.groupnmb;
+	dodaj_proces_u_listu(novi_proces, &values.p);
+	return 0;
 }

@@ -41,7 +41,7 @@ DWORD WINAPI Recive(LPVOID lpParam)
 		if (iResult2 == 0)
 		{
 			// there are no ready sockets, sleep for a while and check again
-			Sleep(5000);
+			Sleep(2000);
 			continue;
 		}
 
@@ -212,11 +212,14 @@ int main(int argc,char* argv[])
 			}
 			
 		}
+		clientSocket2 = clientSocket;
+		serverAddress2 = serverAddress;
+
+
+
 	///////////////////
 		char c;
 
-		clientSocket2 = clientSocket;
-		serverAddress2 = serverAddress;
 		char prijem[OUTGOING_BUFFER_SIZE];
 		hRecive = CreateThread(NULL, 0, &Recive, &clientSocket2, 0, &dRecive);
 	while (work)
