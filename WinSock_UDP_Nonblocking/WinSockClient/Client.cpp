@@ -97,8 +97,6 @@ int main(int argc,char* argv[])
 	serverAddress2.sin_family = AF_INET;
 	serverAddress2.sin_addr.s_addr = inet_addr(SERVER_IP_ADDERESS);
 	serverAddress2.sin_port = htons((u_short)serverPort2);
-	printf("%i s1 port\n", serverAddress.sin_port);
-	printf("%i s2 port\n", serverAddress2.sin_port);
 	// create a socket
 	SOCKET clientSocket = socket(AF_INET,      // IPv4 address famly
 								SOCK_DGRAM,   // datagram socket
@@ -212,6 +210,8 @@ int main(int argc,char* argv[])
 			}
 			
 		}
+
+		//dont touch, MAGIC
 		clientSocket2 = clientSocket;
 		serverAddress2 = serverAddress;
 
@@ -225,7 +225,7 @@ int main(int argc,char* argv[])
 	while (work)
 	{	
 
-		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n");
+		printf("Izaberite:\n1. Diskonektujte se\n2. Posaljite poruku\n3. Ugasi server\n");
 		scanf("%d", &iz);
 		scanf("%c",&c);
 		switch (iz)
@@ -305,6 +305,46 @@ int main(int argc,char* argv[])
 			}
 			break;
 		}
+		case 3: {
+
+			strcpy(outgoingBuffer, "SERVER_SHUT_DOWN");
+			iResult = sendto(clientSocket,
+				outgoingBuffer,
+				strlen(outgoingBuffer),
+				0,
+				(LPSOCKADDR)&serverAddress,
+				sockAddrLen);
+
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("sendto failed with error: %d\n", WSAGetLastError());
+				closesocket(clientSocket);
+				WSACleanup();
+				return 1;
+			}
+			CloseHandle(hRecive);
+			/*
+			Poruka serveru za diskonektovanje
+			*/
+			printf("Press any key to exit.\n");
+			_getch();
+
+			iResult = closesocket(clientSocket);
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("closesocket failed with error: %d\n", WSAGetLastError());
+				return 1;
+			}
+
+			iResult = WSACleanup();
+			if (iResult == SOCKET_ERROR)
+			{
+				printf("WSACleanup failed with error: %ld\n", WSAGetLastError());
+				return 1;
+			}
+			work = false;
+			break;
+		}
 		default: printf("INPUT INVALID\n");
 			break;
 		}
@@ -314,6 +354,7 @@ int main(int argc,char* argv[])
 			Sleep(50);
 			continue;
 		}
+		
 	}
 
     return 0;

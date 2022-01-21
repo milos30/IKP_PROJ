@@ -55,7 +55,6 @@ Grupa* trenutna_grupa = (Grupa*)malloc(sizeof(Grupa));
 
 //(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAddrLen, int brojKorisnika, Proces *p)
 typedef struct Send_mess {
-	Grupa *g;
 	SOCKET serverSocket;
 	sockaddr_in clientadres;
 	int sockaddrlen;
@@ -63,6 +62,11 @@ typedef struct Send_mess {
 	Proces* p;
 }SENDMESS;
 
+typedef struct Discon {
+	int clientPort;
+	GRUPE* g;
+	Proces* p;
+}DC;
 int iResult;
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
@@ -78,10 +82,13 @@ void dodaj_proces_u_listu(Proces *novi_proces, PROCES **lista_procesa_pocetak);
 int obrisi_korisnika(PROCES *lista_procesa_pocetak, int clientPort);
 void obrisi_grupu(GRUPE **trenutna, GRUPE *pocetak);
 void obrisi_que_grupe(QUEUE **q);
+void ocisti_memoriju_grupe(GRUPE** g);
+void ocisti_memoriju_procesa(Proces** p);
 DWORD WINAPI New_Group(LPVOID lpParam);
 DWORD WINAPI Insert_into_group(LPVOID lpParam);
 DWORD WINAPI Get_message(LPVOID lpParam);
 DWORD WINAPI Send_message(LPVOID lpParam);
+DWORD WINAPI Disconnect(LPVOID lpParam);
 
 int main(int argc,char* argv[])
 {
@@ -102,8 +109,10 @@ int main(int argc,char* argv[])
 	int brClanova = 0;
 	int groupNmb = 1;
 
-	DWORD dNew_group, dPrimi_poruku, dUbaci_u_izabranu_grupu, dPosalji_poruku;
-	HANDLE hNew_group, hPrimi_poruku, hUbaci_u_izabranu_grupu, hPosalji_poruku;
+	DWORD dNew_group, dPrimi_poruku, dUbaci_u_izabranu_grupu, dPosalji_poruku, dDiskonekt;
+	HANDLE hNew_group, hPrimi_poruku, hUbaci_u_izabranu_grupu, hPosalji_poruku, hDiskonekt;
+	bool New, Poslato, Dodato, Primljeno, Diskonektovao;
+	New = Poslato = Dodato = Primljeno = Diskonektovao = false;
 
 	int brProcesa = 0;
     if(InitializeWindowsSockets() == false)
@@ -153,7 +162,6 @@ int main(int argc,char* argv[])
         return 1;
     }
 
-	printf("Simple UDP server started and waiting clients.\n");
 
     // Main server loop
     while(1)
@@ -213,7 +221,7 @@ int main(int argc,char* argv[])
 		
 		if (strcmp(accessBuffer, "NEW_GROUP") == 0)
 		{
-			
+			New = true;
 			//ime funkcije treba promeniti i parametre
 			New_group* values = (New_group*)malloc(sizeof(New_group));
 			values->brprocesa = brProcesa;
@@ -225,7 +233,8 @@ int main(int argc,char* argv[])
 			
 			hNew_group = CreateThread(NULL, 0, &New_Group, values, 0, &dNew_group);
 			//CloseHandle(hRecive);
-			
+			Sleep(500);
+			free(values);
 			printf("zavrsio nit");
 			brProcesa++; 
 
@@ -261,19 +270,23 @@ int main(int argc,char* argv[])
 		{
 			int clientPort = ntohs((u_short)clientAddress.sin_port);  // uzmemo klijent port
 
-			Grupa* trenutna;
-			int broj_grupe_brisanog_korisnika = 0;
-			broj_grupe_brisanog_korisnika = obrisi_korisnika(lista_procesa_pocetak, clientPort);
-			trenutna = nadji_grupu(broj_grupe_brisanog_korisnika, niz_grupa_pocetak);
-			trenutna->brClanova--;
-			if (trenutna->brClanova == 0)
-			{
-				obrisi_grupu(&trenutna, niz_grupa_pocetak);
-			}
+			DC* val = (DC*)malloc(sizeof(DC));
+			val->clientPort = clientPort;
+			val->g = niz_grupa_pocetak;
+			val->p = lista_procesa_pocetak;
 
+
+			hDiskonekt = CreateThread(NULL, 0, &Disconnect, val, 0, &dDiskonekt);
+			Sleep(300);
+			Diskonektovao = true;
+			free(val);
 			brProcesa--;
 		}
 		//prima poruke
+		else if (strcmp(accessBuffer, "SERVER_SHUT_DOWN") == 0)
+		{
+			break;
+		}
 		else if (Poruka(accessBuffer))
 		{
 			printf("PRIMI I SALJE \n");
@@ -289,10 +302,9 @@ int main(int argc,char* argv[])
 			values->g = niz_grupa_pocetak;
 			values->p = lista_procesa_pocetak;
 			values->groupnmb = groupNmb-1;
+			Primljeno = true;
 
-
-			hPrimi_poruku = CreateThread(NULL, 0, &Get_message, values, 0, &dPrimi_poruku);
-
+			hPrimi_poruku = CreateThread(NULL, 0, &Get_message, values, 0, &dPrimi_poruku);		
 			/*int trenutnaGrupa = -1;
 			Grupa* trenutna;
 			trenutnaGrupa = nadji_broj_grupe(clientPort, lista_procesa_pocetak, groupNmb - 1);
@@ -300,19 +312,28 @@ int main(int argc,char* argv[])
 
 			//pisanje u queue
 			Write(accessBuffer, &trenutna->q);*/
-			Sleep(10000);
+			Sleep(3000);
+			free(values);
+			
 			SENDMESS* val = (SENDMESS*)malloc(sizeof(SENDMESS));
 			val->brojKorisnika = brProcesa;
 			val->clientadres = clientAddress;
 			val->p = lista_procesa_pocetak;
 			val->serverSocket = serverSocket;
 			val->sockaddrlen = sockAddrLen;
+			printf("--------------PRE KREIRANJA THREDA %s\n", trenutna_grupa->q->data);
 			hPosalji_poruku = CreateThread(NULL, 0, &Send_message, val, 0, &dPosalji_poruku);
-
+			//printf("--------------POSLE KREIRANJA THREDA %s\n", trenutna_grupa->q->data);
+			//int dobro;
+			Poslato = true;
+			//dobro = posalji(*trenutna_grupa, serverSocket, clientAddress, sockAddrLen, brProcesa, lista_procesa_pocetak);
+			Sleep(3000);
+			free(val);
 		}
 		//ubacuje u izabranu grupu
 		else
 		{
+			Dodato = true;
 			int br = atoi(accessBuffer);	// uzimamo broj grupe
 			printf("%d\n", br);
 			INSERT* values = (INSERT*)malloc(sizeof(INSERT));
@@ -321,7 +342,8 @@ int main(int argc,char* argv[])
 			values->g = niz_grupa_pocetak;
 			values->p = &lista_procesa_pocetak;
 			hUbaci_u_izabranu_grupu = CreateThread(NULL, 0, &Insert_into_group, values, 0, &dUbaci_u_izabranu_grupu);
-
+			Sleep(500);
+			free(values);
 			printf("Nit za dodavanje u grupu");
 			brProcesa++;	
 		}
@@ -343,7 +365,19 @@ int main(int argc,char* argv[])
         printf("WSACleanup failed with error: %d\n", WSAGetLastError());
         return 1;
     }
-
+	if(Poslato)
+		CloseHandle(hPosalji_poruku);
+	if(Primljeno)
+		CloseHandle(hPrimi_poruku);
+	if(New)
+		CloseHandle(hNew_group);
+	if(Dodato)
+		CloseHandle(hUbaci_u_izabranu_grupu);
+	if(Diskonektovao)
+		CloseHandle(hDiskonekt);
+	free(trenutna_grupa);
+	ocisti_memoriju_grupe(&niz_grupa_pocetak);
+	ocisti_memoriju_procesa(&lista_procesa_pocetak);
     printf("Server successfully shut down.\n");
     return 0;
 }
@@ -370,6 +404,8 @@ int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAdd
 	Proces *temp = p;
 	int iResult;
 	//printf("Prije fora\n");
+	printf("Posalje q->bottom %s\n", trenutna_grupa->q->data);
+	printf("%i\n", brojKorisnika);
 	for (int i = 0; i < brojKorisnika; i++)
 	{
 		if (!(temp->grupa == g.brojGrupe))
@@ -382,7 +418,7 @@ int posalji(Grupa g, SOCKET serverSocket, sockaddr_in clientAddress, int sockAdd
 		
 		//printf("saljem klijentima: %s\n", q->top->data);
 		printf("Na adresu: %i\n", clientAddress.sin_port);
-		printf("Posalje q->bottom %s\n", g.q->data);
+		printf("Posalje q->bottom %s\n", trenutna_grupa->q->data);
 		iResult = sendto(serverSocket,
 			g.q->data,
 			strlen(g.q->data),
@@ -518,6 +554,11 @@ int obrisi_korisnika(PROCES* lista_procesa_pocetak, int clientPort)
 		{
 			broj_grupe = temp->grupa;
 			previous->sledeci = temp->sledeci;
+			if (temp->sledeci != NULL)
+			{
+				lista_procesa_pocetak = temp->sledeci;
+			}
+			//temp = temp->sledeci;
 			free(temp);
 			temp = NULL;
 			return broj_grupe;
@@ -528,7 +569,6 @@ int obrisi_korisnika(PROCES* lista_procesa_pocetak, int clientPort)
 			temp = temp->sledeci;
 		}
 	}
-	//return broj_grupe;
 }
 
 void obrisi_grupu(GRUPE** trenutna, GRUPE *pocetak)
@@ -573,8 +613,7 @@ void obrisi_que_grupe(QUEUE** q)
 DWORD WINAPI New_Group(LPVOID lpParam)
 {
 	New_group *values = (New_group*)lpParam;
-	printf("Nova grupa\n");
-	//niz_grupa_pocetak = new Grupa;  // mozda nece trebati?
+
 	GRUPE* nova_grupa = (GRUPE*)malloc(sizeof(GRUPE));
 	nova_grupa->brClanova = 1;
 
@@ -611,7 +650,6 @@ DWORD WINAPI Insert_into_group(LPVOID lpParam)
 	trenutna->brClanova++;
 
 
-	//int clientPort = ntohs((u_short)clientAddress.sin_port);
 	PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
 	novi_proces->port = clientPort;
 	novi_proces->sledeci = NULL;
@@ -624,12 +662,13 @@ DWORD WINAPI Get_message(LPVOID lpParam)
 {
 	GETMESS* values = (GETMESS*)lpParam;
 	int trenutnaGrupa = -1;
-	//Grupa* trenutna;
+
 	trenutnaGrupa = nadji_broj_grupe(values->clientPort, values->p, values->groupnmb - 1);
 	trenutna_grupa = nadji_grupu(trenutnaGrupa, values->g);
 
 	//pisanje u queue
 	Write(values->Accssesbuf, &trenutna_grupa->q);
+
 	return 0;
 }
 
@@ -637,7 +676,48 @@ DWORD WINAPI Send_message(LPVOID lpParam)
 {
 	SENDMESS* values = (SENDMESS*)lpParam;
 
+	printf("nit za send message %s\n", trenutna_grupa->q->data);
+
 	int dobro;
 	dobro = posalji(*trenutna_grupa, values->serverSocket, values->clientadres, values->sockaddrlen, values->brojKorisnika, values->p);
+	return 0;
+}
+
+void ocisti_memoriju_grupe(GRUPE** g)
+{
+	if (*g == NULL)
+	{
+		return;
+	}
+	obrisi_que_grupe(&((*g)->q));
+	ocisti_memoriju_grupe(&(*g)->next);
+	free(*g);
+	*g = NULL;
+}
+
+void ocisti_memoriju_procesa(Proces** p)
+{
+	if (*p == NULL)
+	{
+		return;
+	}
+	ocisti_memoriju_procesa(&(*p)->sledeci);
+	free(*p);
+	*p = NULL;
+}
+
+DWORD WINAPI Disconnect(LPVOID lpParam)
+{
+	DC* values = (DC*)lpParam;
+
+	Grupa* trenutna;
+	int broj_grupe_brisanog_korisnika = 0;
+	broj_grupe_brisanog_korisnika = obrisi_korisnika(values->p, values->clientPort);
+	trenutna = nadji_grupu(broj_grupe_brisanog_korisnika, values->g);
+	trenutna->brClanova--;
+	if (trenutna->brClanova == 0)
+	{
+		obrisi_grupu(&trenutna, values->g);
+	}
 	return 0;
 }
