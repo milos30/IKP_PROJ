@@ -1,7 +1,7 @@
 #include <winsock2.h>
 #include <stdio.h>
 #include <Windows.h>
-
+#include <conio.h>
 #define no_init_all deprecated
 #define SERVER_PORT 15000
 #define SERVER_SLEEP_TIME 50
@@ -65,9 +65,10 @@ typedef struct Send_mess {
 typedef struct Discon {
 	int clientPort;
 	GRUPE* g;
-	Proces* p;
+	Proces** p;
 }DC;
 int iResult;
+CRITICAL_SECTION cs;
 // Initializes WinSock2 library
 // Returns true if succeeded, false otherwise.
 bool InitializeWindowsSockets();
@@ -79,7 +80,7 @@ void dodaj_grupu_u_listu(GRUPE* grupa, GRUPE** pocetak);
 GRUPE *nadji_grupu(int br, GRUPE *pocetak);
 int nadji_broj_grupe(int port, PROCES *lista_procesa_pocetak, int groupnmb);
 void dodaj_proces_u_listu(Proces *novi_proces, PROCES **lista_procesa_pocetak);
-int obrisi_korisnika(PROCES *lista_procesa_pocetak, int clientPort);
+int obrisi_korisnika(PROCES **lista_procesa_pocetak, int clientPort);
 void obrisi_grupu(GRUPE **trenutna, GRUPE *pocetak);
 void obrisi_que_grupe(QUEUE **q);
 void ocisti_memoriju_grupe(GRUPE** g);
@@ -92,6 +93,7 @@ DWORD WINAPI Disconnect(LPVOID lpParam);
 
 int main(int argc,char* argv[])
 {
+	InitializeCriticalSection(&cs);
     // Server address
     sockaddr_in serverAddress;
 	// Server's socket
@@ -273,7 +275,7 @@ int main(int argc,char* argv[])
 			DC* val = (DC*)malloc(sizeof(DC));
 			val->clientPort = clientPort;
 			val->g = niz_grupa_pocetak;
-			val->p = lista_procesa_pocetak;
+			val->p = &lista_procesa_pocetak;
 
 
 			hDiskonekt = CreateThread(NULL, 0, &Disconnect, val, 0, &dDiskonekt);
@@ -349,7 +351,19 @@ int main(int argc,char* argv[])
 		}
 		// possible server-shutdown logic could be put here
     }
-
+	if (Poslato)
+		CloseHandle(hPosalji_poruku);
+	if (Primljeno)
+		CloseHandle(hPrimi_poruku);
+	if (New)
+		CloseHandle(hNew_group);
+	if (Dodato)
+		CloseHandle(hUbaci_u_izabranu_grupu);
+	if (Diskonektovao)
+		CloseHandle(hDiskonekt);
+	ocisti_memoriju_grupe(&niz_grupa_pocetak);
+	ocisti_memoriju_procesa(&lista_procesa_pocetak);
+	getch();
     // if we are here, it means that server is shutting down
 	// close socket and unintialize WinSock2 library
     iResult = closesocket(serverSocket);
@@ -365,20 +379,10 @@ int main(int argc,char* argv[])
         printf("WSACleanup failed with error: %d\n", WSAGetLastError());
         return 1;
     }
-	if(Poslato)
-		CloseHandle(hPosalji_poruku);
-	if(Primljeno)
-		CloseHandle(hPrimi_poruku);
-	if(New)
-		CloseHandle(hNew_group);
-	if(Dodato)
-		CloseHandle(hUbaci_u_izabranu_grupu);
-	if(Diskonektovao)
-		CloseHandle(hDiskonekt);
-	free(trenutna_grupa);
-	ocisti_memoriju_grupe(&niz_grupa_pocetak);
-	ocisti_memoriju_procesa(&lista_procesa_pocetak);
+
+	//free(trenutna_grupa);
     printf("Server successfully shut down.\n");
+
     return 0;
 }
 
@@ -543,10 +547,10 @@ void dodaj_proces_u_listu(Proces* novi_proces, PROCES** lista_procesa_pocetak)
 	}
 }
 
-int obrisi_korisnika(PROCES* lista_procesa_pocetak, int clientPort)
+int obrisi_korisnika(PROCES** lista_procesa_pocetak, int clientPort)
 {
 	Proces* temp, * previous;
-	temp = previous = lista_procesa_pocetak;
+	temp = previous = *lista_procesa_pocetak;
 	int broj_grupe = 0;
 	while (1)
 	{
@@ -556,7 +560,7 @@ int obrisi_korisnika(PROCES* lista_procesa_pocetak, int clientPort)
 			previous->sledeci = temp->sledeci;
 			if (temp->sledeci != NULL)
 			{
-				lista_procesa_pocetak = temp->sledeci;
+				*lista_procesa_pocetak = temp->sledeci;
 			}
 			//temp = temp->sledeci;
 			free(temp);
@@ -599,15 +603,25 @@ void obrisi_grupu(GRUPE** trenutna, GRUPE *pocetak)
 
 void obrisi_que_grupe(QUEUE** q)
 {
-	QUEUE *temp;
+	QUEUE* temp;
 
 	while (*q != NULL)
 	{
 		temp = *q;
+
 		*q = (*q)->next;
-		temp->next = NULL;
-		free(temp);
+			temp->next = NULL;
+			free(temp);
+
 	}
+
+/*	if (*q == NULL)
+	{
+		return;
+	}
+	obrisi_que_grupe(&(*q)->next);
+	free(*q);
+	*q = NULL;*/
 }
 
 DWORD WINAPI New_Group(LPVOID lpParam)
@@ -626,15 +640,17 @@ DWORD WINAPI New_Group(LPVOID lpParam)
 
 
 	int clientPort = ntohs((u_short)values->clientadres.sin_port);
-
+	EnterCriticalSection(&cs);
 	dodaj_grupu_u_listu(nova_grupa, values->g);
-
+	LeaveCriticalSection(&cs);
 
 	PROCES* novi_proces = (PROCES*)malloc(sizeof(PROCES));
 	novi_proces->port = clientPort;
 	novi_proces->sledeci = NULL;
 	novi_proces->grupa = values->groupnmb;
+	EnterCriticalSection(&cs);
 	dodaj_proces_u_listu(novi_proces, (values->p));
+	LeaveCriticalSection(&cs);
 	return 0;
 }
 
@@ -654,7 +670,9 @@ DWORD WINAPI Insert_into_group(LPVOID lpParam)
 	novi_proces->port = clientPort;
 	novi_proces->sledeci = NULL;
 	novi_proces->grupa = br;
+	EnterCriticalSection(&cs);
 	dodaj_proces_u_listu(novi_proces, values->p);
+	LeaveCriticalSection(&cs);
 	return 0;
 }
 
@@ -662,13 +680,13 @@ DWORD WINAPI Get_message(LPVOID lpParam)
 {
 	GETMESS* values = (GETMESS*)lpParam;
 	int trenutnaGrupa = -1;
-
+	EnterCriticalSection(&cs);
 	trenutnaGrupa = nadji_broj_grupe(values->clientPort, values->p, values->groupnmb - 1);
 	trenutna_grupa = nadji_grupu(trenutnaGrupa, values->g);
 
 	//pisanje u queue
 	Write(values->Accssesbuf, &trenutna_grupa->q);
-
+	LeaveCriticalSection(&cs);
 	return 0;
 }
 
@@ -677,9 +695,10 @@ DWORD WINAPI Send_message(LPVOID lpParam)
 	SENDMESS* values = (SENDMESS*)lpParam;
 
 	printf("nit za send message %s\n", trenutna_grupa->q->data);
-
+	EnterCriticalSection(&cs);
 	int dobro;
 	dobro = posalji(*trenutna_grupa, values->serverSocket, values->clientadres, values->sockaddrlen, values->brojKorisnika, values->p);
+	LeaveCriticalSection(&cs);
 	return 0;
 }
 
@@ -689,7 +708,8 @@ void ocisti_memoriju_grupe(GRUPE** g)
 	{
 		return;
 	}
-	obrisi_que_grupe(&((*g)->q));
+	//if((*g)->q != NULL)
+	//free(((*g)->q));
 	ocisti_memoriju_grupe(&(*g)->next);
 	free(*g);
 	*g = NULL;
@@ -712,6 +732,7 @@ DWORD WINAPI Disconnect(LPVOID lpParam)
 
 	Grupa* trenutna;
 	int broj_grupe_brisanog_korisnika = 0;
+	EnterCriticalSection(&cs);
 	broj_grupe_brisanog_korisnika = obrisi_korisnika(values->p, values->clientPort);
 	trenutna = nadji_grupu(broj_grupe_brisanog_korisnika, values->g);
 	trenutna->brClanova--;
@@ -719,5 +740,6 @@ DWORD WINAPI Disconnect(LPVOID lpParam)
 	{
 		obrisi_grupu(&trenutna, values->g);
 	}
+	LeaveCriticalSection(&cs);
 	return 0;
 }
